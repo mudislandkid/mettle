@@ -85,6 +85,21 @@ Icon?
 # --- Claude Code per-machine settings ---
 .claude/settings.local.json
 
+# --- Git worktrees ---
+.worktrees/
+
+# --- Internal planning artefacts (brainstorming, specs, plans) ---
+# Design docs, brainstorming output, and implementation plans live here.
+# Kept local, never published.
+docs/superpowers/
+
+# Existing docs that are internal-only (audit + enhancement backlog).
+# Will be deleted before public 0.9 launch, but ignored in the meantime
+# so they aren't accidentally staged.
+docs/CODEBASE_REVIEW.md
+docs/ENHANCEMENTS.md
+docs/reports/
+
 # --- Backup / temp scratch files ---
 *.bak
 *.tmp
