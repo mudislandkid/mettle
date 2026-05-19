@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "code-counter"
+version = "1.0.0"
+description = "Beautiful and powerful code analysis tool with CLI + optional web UI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Ice Point Labs" }]
+keywords = ["code", "analysis", "metrics", "loc", "lines-of-code"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+# Core CLI / batch dependencies. The previously-pinned `pandas==2.2.0` was
+# unused anywhere in the codebase and has been dropped.
+dependencies = [
+    "rich>=13.7.0",
+    "reportlab>=4.0.8",
+    "matplotlib>=3.8.2",
+    "questionary>=2.0.1",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+# Install with: `pip install -e ".[web]"`
+web = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.27.0",
+    "sqlmodel>=0.0.16",
+    "sqlalchemy>=2.0.25",
+    "websockets>=12.0",
+    "aiosqlite>=0.19.0",
+    # >=0.0.18 picks up the CVE-2024-24762 (ReDoS) fix.
+    "python-multipart>=0.0.18",
+]
+
+# Install with: `pip install -e ".[watch]"`
+watch = [
+    "watchfiles>=0.21",
+]
+
+# Install with: `pip install -e ".[dev]"`
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+# `code-counter /some/path` → equivalent to `python -m code_counter /some/path`
+code-counter = "code_counter.__main__:main"
+# `code-counter-batch /some/parent/dir` → batch analysis CLI
+code-counter-batch = "batch_analyze:main"
+
+[project.urls]
+Homepage = "https://github.com/mudislandkid/code-counter"
+
+[tool.setuptools]
+# `batch_analyze.py` lives at the project root rather than inside the
+# `code_counter` package, so list it as a standalone top-level module.
+packages = ["code_counter", "code_counter.analyzers", "code_counter.metrics", "code_counter.reporters", "code_counter.tests"]
+py-modules = ["batch_analyze"]
+
+[tool.setuptools.package-data]
+code_counter = ["config.yaml"]

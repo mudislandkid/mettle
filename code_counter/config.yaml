@@ -1,0 +1,225 @@
+# Code Counter Configuration
+
+# Exclusion patterns
+exclude:
+  # Directories to ignore
+  directories:
+    # Version control
+    - .git
+    - .svn
+    - .hg
+    # Package managers / dependencies
+    - node_modules
+    - bower_components
+    - vendor
+    - venv
+    - .venv
+    - __pycache__
+    - .pio
+    - .platformio
+    # iOS / CocoaPods / Xcode
+    - Pods
+    - xcuserdata
+    - DerivedData
+    - .expo
+    # ESP-IDF managed components
+    - managed_components
+    # Build outputs and artifacts
+    - build
+    - dist
+    - out
+    - output
+    - target
+    - release
+    - debug
+    - bin
+    - obj
+    - .build
+    - cmake-build-debug
+    - cmake-build-release
+    # IDE and tooling
+    - .pytest_cache
+    - .vscode
+    - .idea
+    - .eclipse
+    - coverage
+    - .next
+    - .env
+    - __snapshots__
+    - .cache
+    - .npm
+    - .yarn
+    - .nuxt
+    - .output
+    - .parcel-cache
+    - .serverless
+    - .webpack
+    - .netlify
+    - .vercel
+    - .docusaurus
+    - .storybook-static
+    - .turbo
+    - .angular
+    - .sass-cache
+    - .tsbuildinfo
+    - .nyc_output
+    - .gradle
+    - .mvn
+    - .cargo
+    # OS files
+    - .DS_Store
+    - .Trash
+    - .Trashes
+    - Thumbs.db
+    - ehthumbs.db
+    # Machine learning model directories
+    - models
+    - weights
+    - checkpoints
+    - pretrained
+    - snapshots
+    - blobs
+    # Generated / incremental compilation
+    - incremental
+    - .fingerprint
+    
+  # File patterns to ignore (glob patterns)
+  files:
+    # Compiled bytecode / objects
+    - "*.pyc"
+    - "*.pyo"
+    - "*.pyd"
+    - "*.o"
+    - "*.obj"
+    - "*.a"
+    - "*.lib"
+    - "*.class"
+    # Shared libraries / native binaries
+    - "*.so"
+    - "*.dll"
+    - "*.dylib"
+    - "*.exe"
+    # Rust build artifacts
+    - "*.rmeta"
+    - "*.rlib"
+    - "*.d"
+    - "*.timestamp"
+    - "*.fingerprint"
+    # Source maps and generated files
+    - "*.map"
+    - "*.min.js"
+    - "*.min.css"
+    - "*.chunk.js"
+    - "*.bundle.js"
+    # Lock files (generated, not hand-written)
+    - "package-lock.json"
+    - "yarn.lock"
+    - "pnpm-lock.yaml"
+    - "Cargo.lock"
+    - "poetry.lock"
+    - "Gemfile.lock"
+    - "composer.lock"
+    - "Pipfile.lock"
+    - "bun.lockb"
+    # Environment and secrets
+    - ".env*"
+    - "*.log"
+    # Machine learning model files
+    - "tokenizer.json"
+    - "vocabulary.txt"
+    - "model.bin"
+    - "*.onnx"
+    - "*.pt"
+    - "*.pth"
+    - "*.h5"
+    - "*.pb"
+    - "*.tflite"
+    - "*.mlmodel"
+    - "*.safetensors"
+    - "*.bin"
+    - "*.model"
+    - "*.weights"
+    - "*.ckpt"
+    # Miscellaneous non-source
+    - "*.sample"
+    - "*.bak"
+    - "*.swp"
+    - "*.swo"
+    - ".gitkeep"
+
+# Reporting options
+reports:
+  console:
+    enabled: true
+    show_summary: true
+    show_language_details: true
+    show_charts: false  # Not implemented in console yet
+    metrics:
+      show_averages: true
+      show_todos: true
+      show_imports: true
+      show_line_counts: true
+      show_character_counts: true
+      show_word_counts: true
+      
+  markdown:
+    enabled: true
+    include_timestamp: true
+    include_charts: false  # Not implemented in markdown yet
+    metrics:
+      show_averages: true
+      show_todos: true
+      show_imports: true
+      show_line_counts: true
+      show_character_counts: true
+      show_word_counts: true
+      
+  pdf:
+    enabled: true
+    include_charts: true
+    page_size: letter  # letter, a4, legal
+    metrics:
+      show_averages: true
+      show_todos: true
+      show_imports: true
+      show_line_counts: true
+      show_character_counts: true
+      show_word_counts: true
+
+# Language-specific metrics to include
+languages:
+  JavaScript:
+    enabled: true
+      
+  TypeScript:
+    enabled: true
+    inherit_from: JavaScript
+      
+  Python:
+    enabled: true
+    metrics:
+      - decorators
+      - list_comprehensions
+      - lambda_functions
+      - f_strings
+      
+  HTML:
+    enabled: true
+    metrics:
+      - elements
+      - attributes
+      
+  CSS:
+    enabled: true
+    metrics:
+      - media_queries
+      - selectors
+
+# Output settings
+output:
+  analysis_dir: analysis  # Directory to store reports
+  default_format: both    # console, markdown, pdf, or both
+  file_naming:
+    prefix: ""
+    suffix: "_analysis"
+    include_timestamp: false  # If true, adds timestamp to filenames 
