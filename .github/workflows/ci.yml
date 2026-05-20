@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: pytest + ruff (${{ matrix.python }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install Mettle with web + dev extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[web,dev,watch]"
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: pytest core
+        run: pytest mettle/tests/ -q
+
+      - name: pytest web backend
+        run: pytest web/backend/tests/ -q
+
+      - name: Self-scan smoke test
+        run: python -m mettle scan . --no-pdf --no-html
