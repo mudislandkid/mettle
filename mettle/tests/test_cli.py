@@ -37,3 +37,15 @@ def test_cli_scan_help_lists_known_flags():
     assert result.returncode == 0
     for flag in ("--no-pdf", "--no-html", "--debug", "--compare-to-last"):
         assert flag in result.stdout, f"flag {flag!r} missing"
+
+
+def test_cli_digest_help_lists_flags():
+    """`mettle digest --help` should show the subcommand flags."""
+    result = subprocess.run(
+        [sys.executable, "-m", "mettle", "digest", "--help"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    for flag in ("--since", "--top", "--stale-days", "--format", "--out"):
+        assert flag in result.stdout, f"flag {flag!r} missing"

@@ -267,6 +267,12 @@ class AnalysisListResponse(BaseModel):
     total_projects: int
     total_files: int
     total_lines: int
+    # Phase D — aggregate fields computed at query time
+    completed_at: datetime | None = None
+    duration_seconds: int | None = None
+    avg_health: float | None = None
+    secrets_found: int = 0
+    error_message: str | None = None
 
     class Config:
         from_attributes = True

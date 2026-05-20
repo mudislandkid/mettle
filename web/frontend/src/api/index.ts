@@ -1,4 +1,5 @@
 import { getToken, promptForToken } from '../lib/auth'
+import type { DigestReport } from '@/types'
 
 const API_BASE = '/api'
 
@@ -59,4 +60,16 @@ export async function fetchApi<T>(
 export function getWebSocketUrl(path: string): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${protocol}//${window.location.host}${path}`
+}
+
+export async function fetchDigest(params: {
+  since?: string
+  top?: number
+  staleDays?: number
+}): Promise<DigestReport> {
+  const sp = new URLSearchParams()
+  if (params.since) sp.set('since', params.since)
+  if (params.top != null) sp.set('top', String(params.top))
+  if (params.staleDays != null) sp.set('stale_days', String(params.staleDays))
+  return fetchApi<DigestReport>(`/digest/?${sp.toString()}`)
 }

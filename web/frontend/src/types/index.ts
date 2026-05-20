@@ -208,6 +208,11 @@ export interface Analysis {
   filters_applied: AnalysisFilters | null
   error_message: string | null
   projects: Project[]
+  // Phase D — enriched fields from GET /api/analysis/
+  completed_at?: string | null
+  duration_seconds?: number | null
+  avg_health?: number | null
+  secrets_found?: number
 }
 
 export interface AnalysisListItem {
@@ -218,6 +223,13 @@ export interface AnalysisListItem {
   total_projects: number
   total_files: number
   total_lines: number
+  // Phase D — enriched fields returned by GET /api/analysis/ (Task 8)
+  completed_at?: string | null
+  duration_seconds?: number | null
+  avg_health?: number | null
+  secrets_found?: number
+  error_message?: string | null
+  progress_pct?: number | null
 }
 
 export interface RecentPath {
@@ -248,6 +260,16 @@ export interface AnalysisProgress {
   message: string
   error?: string
   logs?: string[]
+  // Reserved for richer telemetry. Backend currently emits the base
+  // shape; the analyzer can populate these later without a frontend
+  // type change. UI components must tolerate undefined.
+  phase?: string
+  started_at?: string
+  projects_discovered?: number
+  files_counted?: number
+  todos_found?: number
+  secrets_found?: number
+  progress_pct?: number
 }
 
 export interface GitCommitStats {
@@ -290,4 +312,48 @@ export interface GitStatsResponse {
   heatmap_data: [string, number][]
   time_patterns: TimePatterns
   authors: AuthorStats[]
+}
+
+// Phase D — cross-project digest types
+// Mirrors web/backend/schemas/digest.py (Pydantic) and mettle/digest.py (dataclasses).
+export interface DigestEntry {
+  project_id: number
+  project_name: string
+  project_path: string
+  repo_url: string | null
+  headline_value: number
+  headline_label: string
+  baseline_value: number | null
+  current_value: number | null
+  extra: Record<string, unknown> | null
+}
+
+export type DigestSectionKind =
+  | 'grown_most'
+  | 'biggest_swing'
+  | 'dependency_drift'
+  | 'stalled_with_todos'
+  | 'newly_stale'
+  | 'new_since'
+  | 'no_recent_activity'
+
+export interface DigestSection {
+  kind: DigestSectionKind
+  title: string
+  description: string
+  entries: DigestEntry[]
+  empty_message: string | null
+}
+
+export interface DigestReport {
+  generated_at: string
+  window_days: number
+  window_start: string
+  stale_days: number
+  top_n: number
+  total_projects: number
+  projects_with_baseline: number
+  projects_new: number
+  projects_no_recent: number
+  sections: DigestSection[]
 }

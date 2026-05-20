@@ -9,7 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .api import routes_analysis, routes_export, routes_git, routes_projects, routes_tags
+from .api import (
+    routes_analysis,
+    routes_digest,
+    routes_export,
+    routes_git,
+    routes_projects,
+    routes_tags,
+)
 from .database.connection import run_migrations
 from .security import settings as security_settings
 
@@ -86,6 +93,11 @@ app.include_router(
     routes_export.router,
     prefix="/api",
     tags=["export"],
+)
+app.include_router(
+    routes_digest.router,
+    prefix="/api/digest",
+    tags=["digest"],
 )
 
 
