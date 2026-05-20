@@ -106,6 +106,10 @@ class ProjectSummary:
     interfaces: int = 0
     type_aliases: int = 0
     enums: int = 0
+    # Phase C — scanner output
+    secrets_found: int = 0
+    secrets_detail: list | None = None
+    license_spdx: str | None = None
 
     def __post_init__(self):
         if self.todo_items is None:
@@ -473,6 +477,13 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> ProjectSummar
         git_meta = get_git_metadata(project_path)
         deps = detect_dependencies(project_path)
 
+        # Phase C additions
+        from mettle.license_detection import detect_license
+
+        license_spdx = detect_license(project_path)
+        secret_findings = metrics.get("secret_findings", [])
+        secrets_detail = secret_findings if secret_findings else None
+
         return ProjectSummary(
             name=project_path.name,
             total_dirs=metrics["total_dirs"],
@@ -503,6 +514,9 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> ProjectSummar
             interfaces=interfaces,
             type_aliases=type_aliases,
             enums=enums,
+            secrets_found=len(secret_findings),
+            secrets_detail=secrets_detail,
+            license_spdx=license_spdx,
         )
     except Exception as e:
         console = Console()
