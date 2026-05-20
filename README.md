@@ -1,8 +1,8 @@
-# 📊 Code Counter
+# 📊 Mettle
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.9.0--beta-yellow.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-orange.svg)
 
@@ -27,7 +27,7 @@
 
 ## 🤔 What does this do?
 
-Point Code Counter at a project (or a directory full of them) and get back:
+Point Mettle at a project (or a directory full of them) and get back:
 
 - **Honest line counts.** Blank / comment / code lines that always sum to `total_lines` — no double-counting, no `//` matched inside strings, no `if (x) {}` counted as a function.
 - **Structural metrics.** Functions, classes, imports, TODO/FIXME/XXX/HACK markers (with file + line capture for inspection), per-language.
@@ -43,7 +43,7 @@ Point Code Counter at a project (or a directory full of them) and get back:
 - **CI / pre-commit mode** (`--check --fail-on file-lines-over=500`) — non-interactive, exits non-zero on threshold violations.
 - **Watch mode** (`--watch`) — re-analyses on file change with debouncing, prints compact per-metric deltas.
 - **mtime-based per-file cache.** Re-analysing a 5,000-file project skips disk reads + regex passes for files that haven't changed.
-- **Extensible via entry points.** Ship a `BaseAnalyzer` subclass in your own pip package, register it under `[project.entry-points."code_counter.analyzers"]`, and it loads on the next run.
+- **Extensible via entry points.** Ship a `BaseAnalyzer` subclass in your own pip package, register it under `[project.entry-points."mettle.analyzers"]`, and it loads on the next run.
 
 It's useful when you want to:
 
@@ -71,7 +71,7 @@ Deep structural analysis (functions / classes / imports / comments) is implement
 - **C-style languages** — Rust, Go, C/C++, Java, Swift, Kotlin, Objective-C (with `@interface`/`@implementation`/`@protocol`), Terraform, PHP. Strips `//` and `/* */` comments correctly even when they appear inside string literals.
 - **Shell** — bash / zsh / fish. Treats `#` as a comment except in shebangs and inside string literals.
 
-Other detected languages get accurate line counts and language attribution but no structural metrics. Drop a new analyzer into `code_counter/analyzers/` and it's auto-registered (see "Extending Code Counter" below).
+Other detected languages get accurate line counts and language attribution but no structural metrics. Drop a new analyzer into `mettle/analyzers/` and it's auto-registered (see "Extending Mettle" below).
 
 ### 📏 Metrics
 
@@ -111,7 +111,7 @@ Other detected languages get accurate line counts and language attribution but n
 
 ## 🚀 Installation
 
-Code Counter is packaged with `pyproject.toml`. One distribution, two install profiles.
+Mettle is packaged with `pyproject.toml`. One distribution, two install profiles.
 
 **Requirements:**
 - Python **3.10+**
@@ -121,8 +121,8 @@ Code Counter is packaged with `pyproject.toml`. One distribution, two install pr
 ### CLI only
 
 ```bash
-git clone https://github.com/yourusername/code-counter.git
-cd code-counter
+git clone https://github.com/mudislandkid/mettle.git
+cd mettle
 
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
@@ -133,11 +133,11 @@ pip install -e .
 This puts two commands on your PATH:
 
 ```bash
-code-counter /path/to/project        # single-project analysis with PDF
-code-counter-batch /path/to/parent   # batch summary across many projects
+mettle /path/to/project        # single-project analysis with PDF
+mettle-batch /path/to/parent   # batch summary across many projects
 ```
 
-`python -m code_counter` and `python batch_analyze.py` continue to work too.
+`python -m mettle` and `python batch_analyze.py` continue to work too.
 
 ### Web Application (CLI + web extras)
 
@@ -155,14 +155,14 @@ Then open **http://localhost:5173**.
 
 ```bash
 pip install -e ".[watch]"            # adds watchfiles
-code-counter /path/to/project --watch
+mettle /path/to/project --watch
 ```
 
 ### Developer install
 
 ```bash
 pip install -e ".[web,dev,watch]"    # adds pytest + watchfiles
-python -m unittest discover code_counter.tests   # 79 tests
+python -m unittest discover mettle.tests   # 79 tests
 ```
 
 ### Reproducible installs
@@ -214,30 +214,30 @@ In the UI you can:
 
 ```bash
 # Interactive: prompts for path and project name on first run
-code-counter
+mettle
 
 # Direct
-code-counter /path/to/your/project
+mettle /path/to/your/project
 
 # Custom PDF output path
-code-counter /path/to/your/project -o custom_report.pdf
+mettle /path/to/your/project -o custom_report.pdf
 
 # Skip PDF / HTML
-code-counter /path/to/your/project --no-pdf
-code-counter /path/to/your/project --no-html
+mettle /path/to/your/project --no-pdf
+mettle /path/to/your/project --no-html
 
 # Skip files over N lines (e.g. minified bundles)
-code-counter /path/to/your/project --max-lines 1000
+mettle /path/to/your/project --max-lines 1000
 
 # Exclude language buckets or directories by name
-code-counter /path/to/your/project --exclude-types Other Binary Data
-code-counter /path/to/your/project --exclude-dirs models node_modules
+mettle /path/to/your/project --exclude-types Other Binary Data
+mettle /path/to/your/project --exclude-dirs models node_modules
 
 # Diff against the most recent prior run for this directory
-code-counter /path/to/your/project --compare-to-last
+mettle /path/to/your/project --compare-to-last
 
 # Verbose logging (stack traces, large-file detection, etc.)
-code-counter /path/to/your/project --debug
+mettle /path/to/your/project --debug
 ```
 
 #### CI / pre-commit mode
@@ -246,10 +246,10 @@ Non-interactive, no PDF/HTML/Markdown writes, exits non-zero on threshold violat
 
 ```bash
 # Single threshold
-code-counter /path/to/project --check --fail-on file-lines-over=500
+mettle /path/to/project --check --fail-on file-lines-over=500
 
 # Multiple thresholds (--fail-on is repeatable)
-code-counter /path/to/project --check \
+mettle /path/to/project --check \
   --fail-on file-lines-over=500 \
   --fail-on functions-over=50 \
   --fail-on cyclomatic-over=20 \
@@ -272,8 +272,8 @@ Wire into `pre-commit` via a `repo: local` hook, or into CI as a build step. Out
 Re-runs the analysis on file changes (debounced) and prints a compact per-metric delta. Needs the `[watch]` extra (`pip install -e ".[watch]"`):
 
 ```bash
-code-counter /path/to/project --watch
-code-counter /path/to/project --watch --watch-debounce 3000   # ms
+mettle /path/to/project --watch
+mettle /path/to/project --watch --watch-debounce 3000   # ms
 ```
 
 Changes inside the same exclude list the analyzer normally skips (`.git`, `node_modules`, `dist/`, ...) don't trigger re-runs. `Ctrl+C` to stop.
@@ -282,28 +282,28 @@ Changes inside the same exclude list the analyzer normally skips (`.git`, `node_
 
 ```bash
 # Basic batch — every direct subdirectory that looks like a project
-code-counter-batch /path/to/parent/directory
+mettle-batch /path/to/parent/directory
 
 # Filter to projects you own via git remote
-code-counter-batch /path/to/parent --github-user mudislandkid
+mettle-batch /path/to/parent --github-user mudislandkid
 
 # Skip linux / tensorflow / esp-idf / react / etc.
-code-counter-batch /path/to/parent --skip-public-sdks
+mettle-batch /path/to/parent --skip-public-sdks
 
 # Skip vast projects (e.g. monorepos with 100k files)
-code-counter-batch /path/to/parent --max-files 5000
+mettle-batch /path/to/parent --max-files 5000
 
 # Emit a Markdown table + JSON
-code-counter-batch /path/to/parent --output report.md --json results.json
+mettle-batch /path/to/parent --output report.md --json results.json
 
 # Walk deeper (handy if projects live two levels down)
-code-counter-batch /path/to/parent --depth 2
+mettle-batch /path/to/parent --depth 2
 
 # Treat every subdirectory as a project, ignoring heuristics
-code-counter-batch /path/to/parent --all
+mettle-batch /path/to/parent --all
 
 # Combine
-code-counter-batch /Volumes/Projects \
+mettle-batch /Volumes/Projects \
   --github-user mudislandkid \
   --skip-public-sdks \
   --max-files 5000
@@ -311,10 +311,10 @@ code-counter-batch /Volumes/Projects \
 
 ### 🔄 Analysis process (single-project CLI)
 
-When `code-counter` runs interactively:
+When `mettle` runs interactively:
 
 1. **Project naming.** You're offered the previous name used for this directory (if any), recent project names, the directory name as default, or a fresh name. Names are sanitized against path separators and parent-dir refs.
-2. **Output location.** A timestamped directory is created under `$CODE_COUNTER_HOME/analysis/` (default: `~/.code_counter/analysis/`). Format: `YYYYMMDD_HHMMSS_project_name`.
+2. **Output location.** A timestamped directory is created under `$METTLE_HOME/analysis/` (default: `~/.mettle/analysis/`). Format: `YYYYMMDD_HHMMSS_project_name`.
 3. **Generated files:**
    - `<project>_analysis.md` — Markdown report
    - `<project>_analysis.html` — self-contained HTML with inline SVG charts (unless `--no-html`)
@@ -325,11 +325,11 @@ When `code-counter` runs interactively:
 
 | Path | Purpose |
 |------|---------|
-| `~/.code_counter/analysis/` | CLI analysis output (override with `$CODE_COUNTER_HOME`). |
-| `~/.code_counter/history.json` | Last-used paths, recent project names. |
-| `~/.cache/code_counter/analyzer_cache.json` | Auto-discovered analyzer registrations (honors `$XDG_CACHE_HOME`). |
-| `~/.cache/code_counter/file_cache.sqlite3` | Per-file mtime cache for the analyzer. Disable with `CODE_COUNTER_DISABLE_CACHE=1`. |
-| `web/codecounter.db` | Web UI SQLite database (created on first run). |
+| `~/.mettle/analysis/` | CLI analysis output (override with `$METTLE_HOME`). |
+| `~/.mettle/history.json` | Last-used paths, recent project names. |
+| `~/.cache/mettle/analyzer_cache.json` | Auto-discovered analyzer registrations (honors `$XDG_CACHE_HOME`). |
+| `~/.cache/mettle/file_cache.sqlite3` | Per-file mtime cache for the analyzer. Disable with `METTLE_DISABLE_CACHE=1`. |
+| `web/mettle.db` | Web UI SQLite database (created on first run). |
 
 Nothing is written inside the installed package, so installing read-only (pip, Docker, `pipx`) works fine.
 
@@ -337,7 +337,7 @@ Nothing is written inside the installed package, so installing read-only (pip, D
 
 ## ⚙️ Configuration
 
-The CLI ships with sensible defaults baked into `code_counter/config.yaml`. To override, drop a `.code_counter.yaml` in:
+The CLI ships with sensible defaults baked into `mettle/config.yaml`. To override, drop a `.mettle.yaml` in:
 
 1. The directory you run the tool from, **or**
 2. The directory you're analyzing, **or**
@@ -394,10 +394,10 @@ languages:
 ## 📁 Project structure
 
 ```
-CodeCounter/
-├── code_counter/                   # Core analysis engine (the `code-counter` package)
+Mettle/
+├── mettle/                   # Core analysis engine (the `mettle` package)
 │   ├── __init__.py
-│   ├── __main__.py                 # CLI entry point — `code-counter` / `python -m code_counter`
+│   ├── __main__.py                 # CLI entry point — `mettle` / `python -m mettle`
 │   ├── watch.py                    # --watch mode (debounced re-run + delta printing)
 │   ├── config.yaml                 # Bundled default configuration
 │   ├── config_manager.py
@@ -438,7 +438,7 @@ CodeCounter/
 │       ├── test_reporters.py
 │       └── test_watch.py
 │
-├── batch_analyze.py                # Batch CLI — `code-counter-batch` / `python batch_analyze.py`
+├── batch_analyze.py                # Batch CLI — `mettle-batch` / `python batch_analyze.py`
 │
 ├── web/
 │   ├── backend/                    # FastAPI app
@@ -483,7 +483,7 @@ CodeCounter/
 └── pyproject.toml                  # Single source of truth for deps + console scripts
 ```
 
-CLI runtime state lives under `~/.code_counter/` (not in the repo).
+CLI runtime state lives under `~/.mettle/` (not in the repo).
 
 ---
 
@@ -553,17 +553,17 @@ All routes are prefixed under `/api/`. Backend captures the asyncio loop at star
 
 ### Security notes
 
-Code Counter is designed for **local / single-user use on `localhost`**. The web endpoints have no authentication. If you intend to expose this beyond your machine, you'll need to add an auth layer plus a directory allowlist — see `docs/CODEBASE_REVIEW.md` for the full list of considerations.
+Mettle is designed for **local / single-user use on `localhost`**. The web endpoints have no authentication. If you intend to expose this beyond your machine, you'll need to add an auth layer plus a directory allowlist — see `docs/CODEBASE_REVIEW.md` for the full list of considerations.
 
 Even on localhost, the git history feature shells out to `git` against directories you've pointed it at. The subprocess runs with `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, and a scrubbed environment, so a malicious `.git/config` inside a scanned repo can't trigger code execution via `core.fsmonitor` / `core.sshCommand`.
 
 ---
 
-## 🧩 Extending Code Counter
+## 🧩 Extending Mettle
 
 ### Add a new language analyzer
 
-1. Drop a file into `code_counter/analyzers/` (e.g. `ruby.py`) that defines a class ending in `Analyzer`. The factory auto-discovers it the next time `code-counter` runs.
+1. Drop a file into `mettle/analyzers/` (e.g. `ruby.py`) that defines a class ending in `Analyzer`. The factory auto-discovers it the next time `mettle` runs.
 2. Subclass `BaseAnalyzer` (or `CStyleAnalyzer` if your language uses `// ... /* ... */`).
 3. Use the shared `classify_lines()` helper from `base.py` to get a blank / comment / code split that always sums to `total_lines`.
 4. Use class-level `re.compile(...)` constants — they're compiled once per class, not per file.
@@ -600,17 +600,17 @@ You can also register an analyzer manually via `AnalyzerFactory.register_analyze
 
 ### Ship an analyzer in a separate package (entry-point plugins)
 
-You don't have to fork this repo to add a language. Ship a pip-installable package that exposes a `BaseAnalyzer` subclass with `LANGUAGE: str` and `EXTENSIONS: Iterable[str]` class attributes, then advertise it via the `code_counter.analyzers` entry-point group in your own `pyproject.toml`:
+You don't have to fork this repo to add a language. Ship a pip-installable package that exposes a `BaseAnalyzer` subclass with `LANGUAGE: str` and `EXTENSIONS: Iterable[str]` class attributes, then advertise it via the `mettle.analyzers` entry-point group in your own `pyproject.toml`:
 
 ```toml
-[project.entry-points."code_counter.analyzers"]
+[project.entry-points."mettle.analyzers"]
 cobol = "my_pkg.cobol:CobolAnalyzer"
 ```
 
 ```python
 # my_pkg/cobol.py
-from code_counter.analyzers.base import BaseAnalyzer
-from code_counter.metrics.file_metrics import FileMetrics
+from mettle.analyzers.base import BaseAnalyzer
+from mettle.metrics.file_metrics import FileMetrics
 
 
 class CobolAnalyzer(BaseAnalyzer):
@@ -623,18 +623,18 @@ class CobolAnalyzer(BaseAnalyzer):
         return metrics
 ```
 
-`pip install my-pkg`, then the next `code-counter` run discovers `CobolAnalyzer` via `importlib.metadata.entry_points()` and routes `.cob`/`.cbl` files to it.
+`pip install my-pkg`, then the next `mettle` run discovers `CobolAnalyzer` via `importlib.metadata.entry_points()` and routes `.cob`/`.cbl` files to it.
 
 - Plugins **override** built-in / cached registrations for the same language.
 - Extensions are normalised (lower-cased, dot-prefixed).
 - A plugin that fails to import, isn't a `BaseAnalyzer` subclass, or declares no `EXTENSIONS` is logged at WARNING and skipped.
 - Entry-point plugins are **not** persisted to the user cache — they're re-resolved on each run from installed package metadata, so `pip uninstall` cleanly drops the registration.
 
-See `code_counter/analyzers/README.md` for the full contract.
+See `mettle/analyzers/README.md` for the full contract.
 
 ### Local override of bundled defaults
 
-The bundled `code_counter/config.yaml` is never written to. Override behavior with a `.code_counter.yaml` in your home directory (or cwd / project dir) — see the **Configuration** section above.
+The bundled `mettle/config.yaml` is never written to. Override behavior with a `.mettle.yaml` in your home directory (or cwd / project dir) — see the **Configuration** section above.
 
 ---
 
@@ -642,7 +642,7 @@ The bundled `code_counter/config.yaml` is never written to. Override behavior wi
 
 ```bash
 pip install -e ".[dev]"
-python -m unittest discover code_counter.tests   # 79 tests
+python -m unittest discover mettle.tests   # 79 tests
 ```
 
 Backend has its own test layer (run from the repo root):
