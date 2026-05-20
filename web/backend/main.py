@@ -10,8 +10,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api import routes_analysis, routes_export, routes_git, routes_projects, routes_tags
-from .config import CORS_ORIGINS
 from .database.connection import run_migrations
+from .security import settings as security_settings
 
 # Get frontend dist path
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
@@ -35,13 +35,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware for development
+# CORS middleware — origins from METTLE_CORS_ORIGINS, defaults to loopback list.
+# allow_credentials gated on token presence; methods/headers narrowed from "*".
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=security_settings.cors_origins(),
+    allow_credentials=security_settings.token() is not None,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # API routes
