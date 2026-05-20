@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { listAnalyses } from '@/api/analysis'
-import type { AnalysisListItem, Analysis } from '@/types'
+import type { AnalysisListItem } from '@/types'
 import HistoryHero from '@/components/history/HistoryHero.vue'
 import PortfolioHighlights from '@/components/history/PortfolioHighlights.vue'
 import RunsByDirectory from '@/components/history/RunsByDirectory.vue'
@@ -44,7 +44,7 @@ onMounted(loadAnalyses)
     <!-- Content -->
     <template v-else>
       <!-- 1. Hero + Activity Heatmap -->
-      <HistoryHero :analyses="(analyses as unknown as Analysis[])" />
+      <HistoryHero :analyses="analyses" />
 
       <!-- 2. Portfolio Highlights (4-card grid, self-loading) -->
       <PortfolioHighlights />

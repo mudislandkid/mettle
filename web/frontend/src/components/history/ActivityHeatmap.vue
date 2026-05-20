@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Analysis } from '@/types'
+import type { AnalysisListItem } from '@/types'
 
 const props = defineProps<{
-  analyses: Analysis[]
+  analyses: AnalysisListItem[]
 }>()
 
 // Build 56-day (8-week) buckets — last 56 days including today
@@ -15,7 +15,7 @@ const buckets = computed(() => {
   const raw = Array.from({ length: days }, (_, i) => {
     const d = new Date(today)
     d.setDate(today.getDate() - (days - 1 - i))
-    return { date: d, count: 0, latest: null as Analysis | null }
+    return { date: d, count: 0, latest: null as AnalysisListItem | null }
   })
 
   for (const a of props.analyses) {

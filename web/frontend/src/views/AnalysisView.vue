@@ -6,7 +6,6 @@ import AnalyzeEmptyState from '@/components/analyze/AnalyzeEmptyState.vue'
 import AnalyzeRunningState from '@/components/analyze/AnalyzeRunningState.vue'
 import AnalyzeResultsState from '@/components/analyze/AnalyzeResultsState.vue'
 import type { AnalysisFilters } from '@/types'
-import type { AnalysisProgress } from '@/components/analyze/AnalyzeRunningState.vue'
 
 const route = useRoute()
 
@@ -60,11 +59,6 @@ onMounted(async () => {
   }
 })
 
-// ── Cast progress to running-state shape ──────────────────────────────────
-// The composable's AnalysisProgress (from types/index.ts) is a subset of the
-// richer shape AnalyzeRunningState expects. The WebSocket payload always
-// carries the extra fields; we cast so TypeScript is satisfied.
-const runningProgress = computed<AnalysisProgress>(() => progress.value as unknown as AnalysisProgress)
 </script>
 
 <template>
@@ -77,7 +71,7 @@ const runningProgress = computed<AnalysisProgress>(() => progress.value as unkno
 
     <AnalyzeRunningState
       v-else-if="viewState === 'running'"
-      :progress="runningProgress"
+      :progress="progress"
       :directory-path="activeDirectoryPath"
       @cancel="handleCancel"
     />

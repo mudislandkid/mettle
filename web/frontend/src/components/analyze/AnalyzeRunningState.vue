@@ -6,22 +6,7 @@ import LiveCounterTile from './LiveCounterTile.vue'
 import ConsolePanel from './ConsolePanel.vue'
 import { fmtNum, fmtDuration } from '@/lib/format'
 import type { Tone } from '@/lib/tone'
-
-// Progress shape mirrors useWebSocket output + MOCK_PROGRESS fields
-export interface AnalysisProgress {
-  status: string
-  message: string
-  current: number
-  total: number
-  project_name?: string
-  started_at?: string
-  phase: string
-  projects_discovered: number
-  files_counted: number
-  todos_found: number
-  secrets_found: number
-  logs: string[]
-}
+import type { AnalysisProgress } from '@/types'
 
 const props = defineProps<{
   progress: AnalysisProgress
@@ -32,12 +17,22 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-// Derived values
+// Derived values — optional fields default to 0/empty so the UI degrades
+// gracefully when the backend hasn't emitted richer telemetry yet.
 const pct = computed(() =>
   props.progress.total > 0
     ? Math.round((props.progress.current / props.progress.total) * 100)
     : 0,
 )
+
+// Phase derivation: prefer backend-supplied phase, otherwise infer from
+// progress. discovering → counting → analyzing → finalizing.
+const derivedPhase = computed<string>(() => {
+  if (props.progress.phase) return props.progress.phase
+  if (props.progress.total === 0) return 'discovering'
+  if (pct.value < 100) return 'analyzing'
+  return 'finalizing'
+})
 
 const elapsedSec = computed(() => {
   if (!props.progress.started_at) return 0
@@ -50,8 +45,14 @@ const etaSec = computed<number | null>(() => {
 })
 
 const secretsTone = computed<Tone>(() =>
-  props.progress.secrets_found > 0 ? 'rose' : 'slate',
+  (props.progress.secrets_found ?? 0) > 0 ? 'rose' : 'slate',
 )
+
+const projectsValue = computed(() => props.progress.projects_discovered ?? props.progress.total ?? 0)
+const filesValue = computed(() => fmtNum(props.progress.files_counted ?? 0))
+const todosValue = computed(() => props.progress.todos_found ?? 0)
+const secretsValue = computed(() => props.progress.secrets_found ?? 0)
+const logsValue = computed<string[]>(() => props.progress.logs ?? [])
 </script>
 
 <template>
@@ -130,7 +131,7 @@ const secretsTone = computed<Tone>(() =>
 
           <!-- Phase tracker -->
           <div class="mt-4">
-            <PhaseTracker :phase="progress.phase" />
+            <PhaseTracker :phase="derivedPhase" />
           </div>
         </div>
       </div>
@@ -141,7 +142,7 @@ const secretsTone = computed<Tone>(() =>
       <LiveCounterTile
         label="Projects"
         tone="indigo"
-        :value="progress.projects_discovered"
+        :value="projectsValue"
       >
         <template #icon>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -154,7 +155,7 @@ const secretsTone = computed<Tone>(() =>
       <LiveCounterTile
         label="Files counted"
         tone="sky"
-        :value="fmtNum(progress.files_counted)"
+        :value="filesValue"
       >
         <template #icon>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -166,7 +167,7 @@ const secretsTone = computed<Tone>(() =>
       <LiveCounterTile
         label="TODOs"
         tone="amber"
-        :value="progress.todos_found"
+        :value="todosValue"
       >
         <template #icon>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -178,7 +179,7 @@ const secretsTone = computed<Tone>(() =>
       <LiveCounterTile
         label="Secrets flagged"
         :tone="secretsTone"
-        :value="progress.secrets_found"
+        :value="secretsValue"
       >
         <template #icon>
           <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
@@ -190,7 +191,7 @@ const secretsTone = computed<Tone>(() =>
     </div>
 
     <!-- ── Console ──────────────────────────────────────────────────── -->
-    <ConsolePanel :logs="progress.logs" :shimmer="true" />
+    <ConsolePanel :logs="logsValue" :shimmer="true" />
 
   </div>
 </template>

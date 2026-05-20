@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { fmtNum, fmtRelative } from '@/lib/format'
-import type { Analysis } from '@/types'
+import type { AnalysisListItem } from '@/types'
 import ActivityHeatmap from './ActivityHeatmap.vue'
 
 const props = defineProps<{
-  analyses: Analysis[]
+  analyses: AnalysisListItem[]
 }>()
 
 const stats = computed(() => {

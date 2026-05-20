@@ -260,6 +260,16 @@ export interface AnalysisProgress {
   message: string
   error?: string
   logs?: string[]
+  // Reserved for richer telemetry. Backend currently emits the base
+  // shape; the analyzer can populate these later without a frontend
+  // type change. UI components must tolerate undefined.
+  phase?: string
+  started_at?: string
+  projects_discovered?: number
+  files_counted?: number
+  todos_found?: number
+  secrets_found?: number
+  progress_pct?: number
 }
 
 export interface GitCommitStats {
