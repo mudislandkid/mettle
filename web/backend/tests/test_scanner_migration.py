@@ -41,7 +41,7 @@ def test_downgrade_drops_columns(tmp_path):
     db_path = tmp_path / "test.db"
     cfg = _alembic_config(db_path)
     command.upgrade(cfg, "head")
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "0001")
 
     conn = sqlite3.connect(db_path)
     cols = {row[1] for row in conn.execute("PRAGMA table_info(projects)").fetchall()}

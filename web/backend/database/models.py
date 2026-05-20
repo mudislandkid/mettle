@@ -23,6 +23,7 @@ class Analysis(SQLModel, table=True):
     filters_applied: dict | None = Field(default=None, sa_column=Column(JSON))
     status: str = Field(default="pending", index=True)  # pending, running, completed, failed
     error_message: str | None = Field(default=None)
+    completed_at: datetime | None = Field(default=None)
 
     # Relationships
     projects: list["Project"] = Relationship(

@@ -209,6 +209,7 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
                 total_classes += result["classes"]
 
             # Update analysis totals
+            analysis.completed_at = datetime.utcnow()
             analysis.status = "completed"
             analysis.total_projects = len(results)
             analysis.total_files = total_files
@@ -241,6 +242,7 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
             analysis = session.get(Analysis, analysis_id)
             generic_message = "Analysis failed (see server logs)"
             if analysis:
+                analysis.completed_at = datetime.utcnow()
                 analysis.status = "failed"
                 # Store a short reason for the UI but keep full traceback in
                 # the server log only.
