@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified startup script for CodeCounter web application."""
+"""Unified startup script for Mettle web application."""
 
 import argparse
 import os
@@ -109,7 +109,7 @@ def build_frontend() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run CodeCounter web application")
+    parser = argparse.ArgumentParser(description="Run Mettle web application")
     parser.add_argument(
         "--mode",
         choices=["dev", "prod", "backend-only"],
@@ -131,7 +131,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    log(f"\n{Colors.BOLD}CodeCounter Web Application{Colors.RESET}\n", Colors.GREEN)
+    log(f"\n{Colors.BOLD}Mettle Web Application{Colors.RESET}\n", Colors.GREEN)
 
     # Verify deps; install only when explicitly opted in. The old behavior was
     # to silently `pip install` on every launch which is a supply-chain
