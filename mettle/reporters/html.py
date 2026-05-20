@@ -280,7 +280,7 @@ class HTMLReporter(BaseReporter):
     def _render_composition_bars(self) -> str:
         languages = sorted(
             self.metrics_by_language.keys(),
-            key=lambda l: self.metrics_by_language[l].total_lines,
+            key=lambda lang: self.metrics_by_language[lang].total_lines,
             reverse=True,
         )
 
@@ -289,9 +289,9 @@ class HTMLReporter(BaseReporter):
         ax.set_facecolor("#0f172a")
 
         if languages:
-            code_lines = [self.metrics_by_language[l].code_lines for l in languages]
-            comment_lines = [self.metrics_by_language[l].comment_lines for l in languages]
-            blank_lines = [self.metrics_by_language[l].blank_lines for l in languages]
+            code_lines = [self.metrics_by_language[lang].code_lines for lang in languages]
+            comment_lines = [self.metrics_by_language[lang].comment_lines for lang in languages]
+            blank_lines = [self.metrics_by_language[lang].blank_lines for lang in languages]
 
             x = list(range(len(languages)))
             width = 0.27
@@ -332,13 +332,13 @@ class HTMLReporter(BaseReporter):
             "<head>\n"
             '<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-            f"<title>{_esc(self.project_name)} – Code Counter report</title>\n"
+            f"<title>{_esc(self.project_name)} – Mettle report</title>\n"
             "<style>\n" + _CSS + "\n</style>\n"
             "</head>\n"
             "<body>\n"
             '<main class="container">\n'
             f"{body}\n"
-            '<footer class="footer">Built with Code Counter.</footer>\n'
+            '<footer class="footer">Built with Mettle.</footer>\n'
             "</main>\n"
             "</body>\n"
             "</html>\n"

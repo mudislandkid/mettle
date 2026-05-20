@@ -1,4 +1,4 @@
-"""Tests for the --fail-on parser used by `code-counter --check`."""
+"""Tests for the --fail-on parser used by `mettle --check`."""
 
 import unittest
 

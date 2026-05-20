@@ -1,7 +1,7 @@
 # Security Audit Report - December 2025
 
 **Date:** December 29, 2025
-**Project:** CodeCounter
+**Project:** Mettle
 **Auditor:** Automated security review
 **Status:** ✅ **COMPLETED** - All updates applied
 

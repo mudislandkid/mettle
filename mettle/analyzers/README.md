@@ -14,11 +14,11 @@ the next run.
 3. Define the language-specific patterns and `analyze_content()` method.
 4. (Optional) Add an entry to `factory.py`'s `file_extensions` map if your
    extensions don't already match.
-5. (Optional) Add a default-config block under `code_counter/config.yaml`.
+5. (Optional) Add a default-config block under `mettle/config.yaml`.
 
 The first time the tool runs after you add the file, the discovery code reads
 the module, finds the new `Analyzer` subclass, and writes its registration into
-`~/.cache/code_counter/analyzer_cache.json` for next time.
+`~/.cache/mettle/analyzer_cache.json` for next time.
 
 ## Shared helpers (use these)
 
@@ -92,7 +92,7 @@ language's syntax. See `c_style.ObjectiveCAnalyzer` for a working example.
 
 `AnalyzerFactory._discover_analyzers()` registers a class when:
 
-- The file is a `.py` in `code_counter/analyzers/`.
+- The file is a `.py` in `mettle/analyzers/`.
 - It's not one of the framework files (`__init__`, `base`, `factory`,
   `template_analyzer`, `c_style`).
 - It defines a class that inherits from `BaseAnalyzer`, has a name ending in
@@ -107,7 +107,7 @@ for that language — add an entry there for new file types.
 For runtime registration (e.g. from a downstream script or test):
 
 ```python
-from code_counter.analyzers.factory import AnalyzerFactory
+from mettle.analyzers.factory import AnalyzerFactory
 from your_module import YourAnalyzer
 
 factory = AnalyzerFactory()
@@ -120,18 +120,18 @@ This also persists into the user-level cache file.
 
 You don't have to fork this repo to add a language. Ship a pip-installable
 package that exposes a `BaseAnalyzer` subclass with `LANGUAGE` and `EXTENSIONS`
-class attributes, then advertise it via the `code_counter.analyzers` entry
+class attributes, then advertise it via the `mettle.analyzers` entry
 point group in your own `pyproject.toml`:
 
 ```toml
-[project.entry-points."code_counter.analyzers"]
+[project.entry-points."mettle.analyzers"]
 cobol = "my_pkg.cobol:CobolAnalyzer"
 ```
 
 ```python
 # my_pkg/cobol.py
-from code_counter.analyzers.base import BaseAnalyzer, classify_lines
-from code_counter.metrics.file_metrics import FileMetrics
+from mettle.analyzers.base import BaseAnalyzer, classify_lines
+from mettle.metrics.file_metrics import FileMetrics
 
 
 class CobolAnalyzer(BaseAnalyzer):
@@ -144,7 +144,7 @@ class CobolAnalyzer(BaseAnalyzer):
         return metrics
 ```
 
-`pip install my-pkg` and the next `code-counter` run discovers `CobolAnalyzer`
+`pip install my-pkg` and the next `mettle` run discovers `CobolAnalyzer`
 via `importlib.metadata.entry_points()` and routes `.cob`/`.cbl` files to it.
 
 Rules:
@@ -163,7 +163,7 @@ Rules:
 
 ## Adding language-specific metrics
 
-Add an attribute to `code_counter/metrics/file_metrics.py`:
+Add an attribute to `mettle/metrics/file_metrics.py`:
 
 ```python
 @dataclass
@@ -222,6 +222,6 @@ r'^\s*#include\s+'                     # C / C++
 
 ## Testing
 
-`code_counter/tests/test_analyzers.py` includes a `LineSumInvariant` test
+`mettle/tests/test_analyzers.py` includes a `LineSumInvariant` test
 class — add a one-liner there for your language so the
 `blank + comment + code == total` property is enforced for it too.

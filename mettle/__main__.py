@@ -196,8 +196,8 @@ def _parse_fail_on(raw: list[str]) -> dict[str, int]:
             raise ValueError(f"unknown --fail-on key: {key!r}. valid: {sorted(_CHECK_KEYS)}")
         try:
             thresholds[key] = int(value.strip())
-        except ValueError:
-            raise ValueError(f"--fail-on {key} requires an integer, got {value!r}")
+        except ValueError as err:
+            raise ValueError(f"--fail-on {key} requires an integer, got {value!r}") from err
     return thresholds
 
 
@@ -237,7 +237,7 @@ def run_check_mode(args) -> int:
     # file-lines-over: enumerate every file we analysed and compare its total_lines.
     file_lines_limit = thresholds.get("file-lines-over")
     if file_lines_limit is not None:
-        for lang, files in analyzer.directory_analyzer.files_by_language.items():
+        for _lang, files in analyzer.directory_analyzer.files_by_language.items():
             for path, fm in files.items():
                 if fm.total_lines > file_lines_limit:
                     violations.append(
@@ -247,7 +247,7 @@ def run_check_mode(args) -> int:
     # functions-over: same idea, but on per-file function count.
     functions_limit = thresholds.get("functions-over")
     if functions_limit is not None:
-        for lang, files in analyzer.directory_analyzer.files_by_language.items():
+        for _lang, files in analyzer.directory_analyzer.files_by_language.items():
             for path, fm in files.items():
                 if fm.functions > functions_limit:
                     violations.append(
@@ -453,7 +453,7 @@ def main(args: argparse.Namespace | None = None) -> int:
         # Show welcome message
         console.print(
             Panel.fit(
-                "[bold blue]Code Counter[/bold blue]\n"
+                "[bold blue]Mettle[/bold blue]\n"
                 "[cyan]A powerful and extensible code analysis tool[/cyan]",
                 border_style="blue",
             )

@@ -6,7 +6,7 @@ import yaml
 
 class ConfigManager:
     """
-    Manages configuration for the code counter application.
+    Manages configuration for the Mettle application.
 
     This class is responsible for:
     - Loading configuration from YAML files

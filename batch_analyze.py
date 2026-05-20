@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Batch Analysis Script for Code Counter
+Batch Analysis Script for Mettle
 
 Analyzes all project folders within a directory and produces a consolidated report.
 
@@ -17,6 +17,12 @@ import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from rich.console import Console
+from rich.table import Table
+
+from mettle.analyzers.code_analyzer import CodeAnalyzer
+from mettle.analyzers.dependency_detection import detect_dependencies
+
 # Sandboxed environment for any git subprocess we shell out to, so a hostile
 # `.git/config` inside a scanned project can't trigger code execution.
 _SAFE_GIT_ENV = {
@@ -27,12 +33,6 @@ _SAFE_GIT_ENV = {
     "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
     "HOME": "/dev/null",
 }
-
-from rich.console import Console
-from rich.table import Table
-
-from mettle.analyzers.code_analyzer import CodeAnalyzer
-from mettle.analyzers.dependency_detection import detect_dependencies
 
 # Known large public SDKs/frameworks that are typically vendored, not user projects
 KNOWN_PUBLIC_SDKS = {

@@ -1,6 +1,6 @@
 """Watch mode — re-run analysis on file changes and print deltas.
 
-Triggered via `code-counter --watch /path`. Uses `watchfiles` (optional dep
+Triggered via `mettle --watch /path`. Uses `watchfiles` (optional dep
 installed via `pip install -e ".[watch]"`). Filters out the same directories
 that DirectoryAnalyzer would skip, debounces bursts, and prints a compact
 delta vs the previous run.
@@ -65,7 +65,7 @@ def _print_delta(console: Console, before: dict[str, int], after: dict[str, int]
         console.print("[dim]  (no metric changes)[/dim]")
 
 
-def _make_change_filter(analyzer: CodeAnalyzer) -> Callable[[Change, str], bool]:
+def _make_change_filter(analyzer: CodeAnalyzer):
     """Return a watchfiles change filter that drops paths inside excluded dirs.
 
     Imported lazily so this module doesn't blow up at import time when

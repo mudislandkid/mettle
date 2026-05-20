@@ -388,7 +388,7 @@ class DirectoryAnalyzer:
     def save_metrics(self, output_path: str, source_directory: str | None = None):
         """Save metrics to a JSON file, optionally tagging it with the source dir.
 
-        `source_directory` is what `code-counter --compare-to-last` uses to
+        `source_directory` is what `mettle --compare-to-last` uses to
         find the right previous run to diff against, so always pass it when
         you have it.
         """
