@@ -1,11 +1,11 @@
-"""Configuration settings for CodeCounter Web."""
+"""Configuration settings for Mettle Web."""
 
 from pathlib import Path
 
 # Base paths
 WEB_DIR = Path(__file__).parent.parent
 PROJECT_ROOT = WEB_DIR.parent
-DATABASE_PATH = WEB_DIR / "codecounter.db"
+DATABASE_PATH = WEB_DIR / "mettle.db"
 
 # Database URL
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"

@@ -106,7 +106,7 @@ class GitStatsResponse(BaseModel):
         json_schema_extra = {
             "example": {
                 "project_id": 1,
-                "project_name": "CodeCounter",
+                "project_name": "Mettle",
                 "is_git_repo": True,
                 "total_commits": 127,
                 "first_commit_date": "2023-06-15T10:30:00Z",
@@ -153,6 +153,6 @@ class GitErrorResponse(BaseModel):
                 "error": "Not a Git repository",
                 "is_git_repo": False,
                 "project_id": 1,
-                "project_name": "CodeCounter"
+                "project_name": "Mettle"
             }
         }

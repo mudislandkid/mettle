@@ -1,4 +1,4 @@
-"""FastAPI main application for CodeCounter Web."""
+"""FastAPI main application for Mettle Web."""
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -29,9 +29,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="CodeCounter Web API",
-    description="Web interface for batch code analysis",
-    version="1.0.0",
+    title="Mettle Web API",
+    description="Triage dashboard for the AI-coding era",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -79,7 +79,7 @@ async def serve_frontend():
     index_path = FRONTEND_DIST / "index.html"
     if index_path.exists():
         return FileResponse(index_path)
-    return {"message": "CodeCounter Web API", "docs": "/docs"}
+    return {"message": "Mettle Web API", "docs": "/docs"}
 
 
 # Serve static files if frontend is built

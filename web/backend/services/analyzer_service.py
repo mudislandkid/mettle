@@ -1,4 +1,4 @@
-"""Analyzer service wrapping existing CodeCounter modules."""
+"""Analyzer service wrapping existing Mettle modules."""
 
 import sys
 from pathlib import Path

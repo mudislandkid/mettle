@@ -1,4 +1,4 @@
-"""SQLModel database models for CodeCounter Web."""
+"""SQLModel database models for Mettle Web."""
 
 from datetime import datetime
 from typing import Optional
