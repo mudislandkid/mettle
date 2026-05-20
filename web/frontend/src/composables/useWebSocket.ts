@@ -1,5 +1,6 @@
 import { ref, onScopeDispose } from 'vue'
 import { getWebSocketUrl } from '@/api'
+import { getToken, promptForToken } from '@/lib/auth'
 
 export interface UseWebSocketOptions<T> {
   /** Auto-reconnect with exponential backoff on unexpected close. */
@@ -42,7 +43,9 @@ export function useWebSocket<T = unknown>(path: string, options: UseWebSocketOpt
     intentionallyClosed = false
 
     const url = getWebSocketUrl(path)
-    const socket = new WebSocket(url)
+    const token = getToken()
+    const protocols = token ? ['mettle.bearer', token] : []
+    const socket = new WebSocket(url, protocols)
     ws.value = socket
 
     socket.onopen = () => {
@@ -65,7 +68,10 @@ export function useWebSocket<T = unknown>(path: string, options: UseWebSocketOpt
       options.onError?.(err)
     }
 
-    socket.onclose = () => {
+    socket.onclose = (event) => {
+      if (event.code === 1008) {
+        promptForToken()
+      }
       isConnected.value = false
       options.onClose?.()
       scheduleReconnect()
