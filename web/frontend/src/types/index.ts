@@ -223,6 +223,13 @@ export interface AnalysisListItem {
   total_projects: number
   total_files: number
   total_lines: number
+  // Phase D — enriched fields returned by GET /api/analysis/ (Task 8)
+  completed_at?: string | null
+  duration_seconds?: number | null
+  avg_health?: number | null
+  secrets_found?: number
+  error_message?: string | null
+  progress_pct?: number | null
 }
 
 export interface RecentPath {
