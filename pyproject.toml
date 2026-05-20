@@ -87,7 +87,15 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = ["E501"]  # line length handled by formatter
+ignore = [
+    "E501",   # line length handled by formatter
+    "B008",   # FastAPI Depends() in default args is idiomatic; not a real issue
+]
+
+[tool.ruff.lint.per-file-ignores]
+# web backend files that do sys.path surgery before importing project modules
+"web/backend/services/analyzer_service.py" = ["E402"]
+"web/backend/api/routes_export.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["mettle/tests", "web/backend/tests"]

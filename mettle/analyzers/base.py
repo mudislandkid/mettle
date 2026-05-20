@@ -1,5 +1,4 @@
 import re
-from abc import ABC
 
 from ..metrics.file_metrics import FileMetrics
 
@@ -109,7 +108,7 @@ def classify_lines(
     return blank, comment_only, code_lines
 
 
-class BaseAnalyzer(ABC):
+class BaseAnalyzer:
     def count_functions_and_classes(self, content: str) -> tuple[int, int]:
         """Count functions and classes in the code.
 

@@ -10,7 +10,7 @@ matplotlib.use("Agg", force=True)
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import inch, landscape, letter
+from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
@@ -173,9 +173,9 @@ class PDFReporter(BaseReporter):
         ax2 = fig2.add_subplot(111)
 
         if languages:
-            code_lines = [self.metrics_by_language[l].code_lines for l in languages]
-            comment_lines = [self.metrics_by_language[l].comment_lines for l in languages]
-            blank_lines = [self.metrics_by_language[l].blank_lines for l in languages]
+            code_lines = [self.metrics_by_language[lang].code_lines for lang in languages]
+            comment_lines = [self.metrics_by_language[lang].comment_lines for lang in languages]
+            blank_lines = [self.metrics_by_language[lang].blank_lines for lang in languages]
 
             x = list(range(len(languages)))
             width = 0.25
@@ -367,7 +367,7 @@ class PDFReporter(BaseReporter):
 
         # Add group header styling
         group_start = 1
-        for group_name, metrics in metric_groups.items():
+        for _group_name, metrics in metric_groups.items():
             style.add("BACKGROUND", (0, group_start), (-1, group_start), colors.HexColor("#e9ecef"))
             style.add("FONTNAME", (0, group_start), (-1, group_start), "Helvetica-Bold")
             style.add(

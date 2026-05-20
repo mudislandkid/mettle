@@ -177,8 +177,8 @@ async def list_projects(
         cutoff = datetime.now(timezone.utc) - timedelta(days=stale_days)
         archived_ids = select(ProjectFlag.project_id).where(ProjectFlag.flag_type == "archived")
         query = query.where(
-            or_(Project.last_commit_at == None, Project.last_commit_at < cutoff)
-        ).where(Project.id.not_in(archived_ids))  # noqa: E711
+            or_(Project.last_commit_at == None, Project.last_commit_at < cutoff)  # noqa: E711
+        ).where(Project.id.not_in(archived_ids))
 
     # Sorting — column allowlist so users can't reach into class internals.
     if sort_by not in _SORTABLE_COLUMNS:
@@ -377,7 +377,9 @@ async def refresh_project_analysis(
         return get_project_response(project, session)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to re-analyze project: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to re-analyze project: {str(e)}"
+        ) from e
 
 
 # Top-N dashboard panels -------------------------------------------------------
@@ -412,8 +414,8 @@ async def compare_projects(
 
     try:
         project_ids = [int(s) for s in raw_ids]
-    except ValueError:
-        raise HTTPException(status_code=400, detail="ids must be comma-separated integers")
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail="ids must be comma-separated integers") from err
 
     entries: list[ProjectCompareEntry] = []
     for project_id in project_ids:
