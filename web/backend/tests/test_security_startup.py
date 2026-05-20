@@ -52,3 +52,29 @@ def test_validate_cors_rejects_empty_with_token(security_env):
     with pytest.raises(SystemExit) as exc:
         startup.validate_cors([])
     assert "empty" in str(exc.value).lower() or "no allowed origins" in str(exc.value).lower()
+
+
+def test_run_py_main_refuses_public_bind_without_flag(security_env, capsys):
+    """Smoke test that web/run.py main() calls assert_bind_is_safe."""
+    import argparse
+    import sys
+
+    security_env()
+    sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[3] / "web"))
+    try:
+        import run as web_run
+    finally:
+        sys.path.pop(0)
+
+    ns = argparse.Namespace(
+        mode="backend-only",
+        backend_host="0.0.0.0",
+        backend_port=8000,
+        frontend_port=5173,
+        skip_install=True,
+        auto_install=False,
+        allow_public_bind=False,
+    )
+    with pytest.raises(SystemExit) as exc:
+        web_run.main(ns)
+    assert "--allow-public-bind" in str(exc.value)

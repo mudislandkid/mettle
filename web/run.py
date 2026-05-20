@@ -141,7 +141,18 @@ def main(args: argparse.Namespace | None = None) -> int:
             action="store_true",
             help="Run pip/npm install automatically if deps are missing. Off by default to avoid supply-chain surprises.",
         )
+        parser.add_argument(
+            "--allow-public-bind",
+            action="store_true",
+            help="Required to bind --backend-host to a non-loopback address.",
+        )
         args = parser.parse_args()
+
+    # Security gate: refuse non-loopback bind without --allow-public-bind AND METTLE_TOKEN.
+    # Imported lazily so test fixtures importing web.run don't trigger the env-var read.
+    from web.backend.security.startup import assert_bind_is_safe
+
+    assert_bind_is_safe(args.backend_host, args.allow_public_bind)
 
     log(f"\n{Colors.BOLD}Mettle Web Application{Colors.RESET}\n", Colors.GREEN)
 

@@ -200,6 +200,12 @@ def check(
 @click.option("--frontend-port", type=int, default=5173)
 @click.option("--skip-install", is_flag=True)
 @click.option("--auto-install", is_flag=True)
+@click.option(
+    "--allow-public-bind",
+    is_flag=True,
+    default=False,
+    help="Required to bind --backend-host to a non-loopback address.",
+)
 def web(
     mode: str,
     backend_host: str,
@@ -207,6 +213,7 @@ def web(
     frontend_port: int,
     skip_install: bool,
     auto_install: bool,
+    allow_public_bind: bool,
 ) -> None:
     """Launch the Mettle web UI."""
     # web/run.py is a top-level script outside the package; import it via
@@ -228,6 +235,7 @@ def web(
         frontend_port=frontend_port,
         skip_install=skip_install,
         auto_install=auto_install,
+        allow_public_bind=allow_public_bind,
     )
     _sys.exit(_web_run.main(ns) or 0)
 
