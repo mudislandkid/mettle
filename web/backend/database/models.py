@@ -80,6 +80,10 @@ class Project(SQLModel, table=True):
     interfaces: int = Field(default=0)
     type_aliases: int = Field(default=0)
     enums: int = Field(default=0)
+    # Phase C — scanner output (0002_scanner_columns migration)
+    secrets_found: int = Field(default=0)
+    secrets_detail: list | None = Field(default=None, sa_column=Column(JSON))
+    license_spdx: str | None = Field(default=None, index=True)
 
     # Relationships
     analysis: Analysis | None = Relationship(back_populates="projects")
