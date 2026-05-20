@@ -24,14 +24,23 @@ from pathlib import Path
 
 from ..metrics.file_metrics import FileMetrics
 
+_CACHE_SCHEMA_VERSION = 2
+
 _CACHE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS schema_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS file_metrics (
     path TEXT PRIMARY KEY,
     mtime_ns INTEGER NOT NULL,
     size INTEGER NOT NULL,
     language TEXT NOT NULL,
-    metrics_json TEXT NOT NULL
+    metrics_json TEXT NOT NULL,
+    secrets_json TEXT NOT NULL DEFAULT '[]'
 );
+
 CREATE INDEX IF NOT EXISTS idx_file_metrics_size ON file_metrics(size);
 """
 
@@ -71,8 +80,22 @@ class FileMetricsCache:
             self._conn.execute("PRAGMA synchronous=NORMAL")
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.executescript(_CACHE_SCHEMA)
+            self._enforce_schema_version(self._conn)
             self._conn.commit()
         return self._conn
+
+    def _enforce_schema_version(self, conn: sqlite3.Connection) -> None:
+        """If the on-disk schema version doesn't match the current one, wipe
+        the file_metrics table. The first get/put after this rebuilds entries
+        with the new column shape."""
+        row = conn.execute("SELECT value FROM schema_meta WHERE key = 'version'").fetchone()
+        on_disk = int(row[0]) if row else 0
+        if on_disk != _CACHE_SCHEMA_VERSION:
+            conn.execute("DELETE FROM file_metrics")
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
+                (str(_CACHE_SCHEMA_VERSION),),
+            )
 
     def reset_stats(self) -> None:
         self.hits = 0
@@ -93,51 +116,63 @@ class FileMetricsCache:
 
     # --------------------------------------------------------------- lookups
 
-    def get(self, file_path: str, mtime_ns: int, size: int) -> tuple[str, FileMetrics] | None:
-        """Return `(language, metrics)` if there's a fresh cache hit, else None."""
+    def get(
+        self, file_path: str, mtime_ns: int, size: int
+    ) -> tuple[str, FileMetrics, list[dict]] | None:
+        """Return `(language, metrics, secret_findings)` if there's a fresh cache hit, else None."""
         if not self.enabled:
             return None
         with self._lock:
             conn = self._connection()
             row = conn.execute(
-                "SELECT mtime_ns, size, language, metrics_json FROM file_metrics WHERE path = ?",
+                "SELECT mtime_ns, size, language, metrics_json, secrets_json "
+                "FROM file_metrics WHERE path = ?",
                 (file_path,),
             ).fetchone()
         if row is None:
             self.misses += 1
             return None
-        cached_mtime, cached_size, language, payload = row
+        cached_mtime, cached_size, language, payload, secrets_payload = row
         if cached_mtime != mtime_ns or cached_size != size:
             # Stale; remove so a later put() can overwrite cleanly.
             self.misses += 1
             return None
         try:
             metrics = FileMetrics(**json.loads(payload))
+            findings = json.loads(secrets_payload) if secrets_payload else []
         except (TypeError, ValueError, json.JSONDecodeError):
             self.misses += 1
             return None
         self.hits += 1
-        return language, metrics
+        return language, metrics, findings
 
     def put(
-        self, file_path: str, mtime_ns: int, size: int, language: str, metrics: FileMetrics
+        self,
+        file_path: str,
+        mtime_ns: int,
+        size: int,
+        language: str,
+        metrics: FileMetrics,
+        secret_findings: list[dict] | None = None,
     ) -> None:
         if not self.enabled:
             return
         payload = json.dumps(asdict(metrics))
+        secrets_json = json.dumps(secret_findings or [])
         with self._lock:
             conn = self._connection()
             conn.execute(
                 """
-                INSERT INTO file_metrics(path, mtime_ns, size, language, metrics_json)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO file_metrics(path, mtime_ns, size, language, metrics_json, secrets_json)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(path) DO UPDATE SET
                     mtime_ns = excluded.mtime_ns,
                     size = excluded.size,
                     language = excluded.language,
-                    metrics_json = excluded.metrics_json
+                    metrics_json = excluded.metrics_json,
+                    secrets_json = excluded.secrets_json
                 """,
-                (file_path, mtime_ns, size, language, payload),
+                (file_path, mtime_ns, size, language, payload, secrets_json),
             )
             conn.commit()
 

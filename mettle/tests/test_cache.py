@@ -33,10 +33,11 @@ class TestFileMetricsCache(unittest.TestCase):
         self.cache.put("/some/file.py", mtime_ns=42, size=1024, language="Python", metrics=m)
         hit = self.cache.get("/some/file.py", mtime_ns=42, size=1024)
         self.assertIsNotNone(hit)
-        lang, returned = hit
+        lang, returned, findings = hit
         self.assertEqual(lang, "Python")
         self.assertEqual(returned.total_lines, 123)
         self.assertEqual(returned.code_lines, 118)
+        self.assertEqual(findings, [])
         self.assertEqual(self.cache.hits, 1)
         self.assertEqual(self.cache.misses, 0)
 
@@ -100,8 +101,11 @@ class TestFileAnalyzerCacheIntegration(unittest.TestCase):
         src = Path(self.tmpdir.name) / "demo.py"
         src.write_text("def foo():\n    return 1\n")
         analyzer = FileAnalyzer(cache=self.cache)
-        lang1, m1 = analyzer.analyze_file(str(src))
-        lang2, m2 = analyzer.analyze_file(str(src))
+        result1 = analyzer.analyze_file(str(src))
+        result2 = analyzer.analyze_file(str(src))
+        # analyze_file returns (language, metrics[, findings]) — unpack safely.
+        lang1, m1 = result1[0], result1[1]
+        lang2, m2 = result2[0], result2[1]
         self.assertEqual(lang1, "Python")
         self.assertEqual(lang2, "Python")
         self.assertEqual(m1.total_lines, m2.total_lines)
