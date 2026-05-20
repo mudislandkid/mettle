@@ -7,8 +7,8 @@ file from disk plus running every regex over it.
 If the file has changed (different mtime OR different size), the cache misses
 and the analyzer runs normally; the new metrics are then written back.
 
-Stored under `$XDG_CACHE_HOME/code_counter/file_cache.sqlite3`, falling back to
-`~/.cache/code_counter/` and finally the system temp dir if neither is writable.
+Stored under `$XDG_CACHE_HOME/mettle/file_cache.sqlite3`, falling back to
+`~/.cache/mettle/` and finally the system temp dir if neither is writable.
 The cache is safe to delete at any time — it will rebuild itself.
 """
 
@@ -40,11 +40,11 @@ CREATE INDEX IF NOT EXISTS idx_file_metrics_size ON file_metrics(size);
 
 def _default_cache_path() -> Path:
     base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
-    cache_dir = Path(base) / "code_counter"
+    cache_dir = Path(base) / "mettle"
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
-        cache_dir = Path(tempfile.gettempdir()) / "code_counter"
+        cache_dir = Path(tempfile.gettempdir()) / "mettle"
         cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / "file_cache.sqlite3"
 
@@ -152,6 +152,6 @@ def get_default_cache() -> FileMetricsCache:
     if _default_cache is None:
         with _default_cache_lock:
             if _default_cache is None:
-                disabled = os.environ.get("CODE_COUNTER_DISABLE_CACHE") == "1"
+                disabled = os.environ.get("METTLE_DISABLE_CACHE") == "1"
                 _default_cache = FileMetricsCache(enabled=not disabled)
     return _default_cache

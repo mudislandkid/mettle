@@ -24,7 +24,7 @@ from .python_ast import PythonAstAnalyzer
 from .html_css import HTMLCSSAnalyzer
 from .c_style import CStyleAnalyzer, ShellAnalyzer, ObjectiveCAnalyzer
 
-ENTRY_POINT_GROUP = "code_counter.analyzers"
+ENTRY_POINT_GROUP = "mettle.analyzers"
 _log = logging.getLogger(__name__)
 
 
@@ -32,13 +32,13 @@ def _user_cache_path() -> Path:
     """Return a per-user cache file location that won't try to mutate the
     installed package directory."""
     base = os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache')
-    cache_dir = Path(base) / 'code_counter'
+    cache_dir = Path(base) / 'mettle'
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         # Fall back to the platform's tmp dir if ~/.cache is unwritable.
         import tempfile
-        cache_dir = Path(tempfile.gettempdir()) / 'code_counter'
+        cache_dir = Path(tempfile.gettempdir()) / 'mettle'
         cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / 'analyzer_cache.json'
 
@@ -208,11 +208,11 @@ class AnalyzerFactory:
         self._save_registrations()
     
     def _discover_entry_point_plugins(self) -> None:
-        """Load third-party analyzers registered via the `code_counter.analyzers` entry point.
+        """Load third-party analyzers registered via the `mettle.analyzers` entry point.
 
         Plugins declare themselves in their own pyproject.toml::
 
-            [project.entry-points."code_counter.analyzers"]
+            [project.entry-points."mettle.analyzers"]
             cobol = "my_pkg.cobol:CobolAnalyzer"
 
         Each entry point must resolve to a `BaseAnalyzer` subclass that exposes
