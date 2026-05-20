@@ -81,3 +81,42 @@ def test_filter_jailed_drops_violators_silently(security_env, tmp_path):
     survivors = path_jail.filter_jailed([str(inside), str(outside)])
     assert inside.resolve() in survivors
     assert outside.resolve() not in survivors
+
+
+def test_validate_path_returns_403_for_escape(security_env, tmp_path):
+    """The real /api/validate-path route enforces the jail."""
+    root = tmp_path / "allowed"
+    root.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    security_env(SCAN_ROOTS=str(root))
+
+    import importlib
+
+    from web.backend import main as backend_main
+
+    importlib.reload(backend_main)
+    from fastapi.testclient import TestClient
+
+    client = TestClient(backend_main.app)
+    r = client.post("/api/validate-path", json={"path": str(elsewhere)})
+    assert r.status_code == 403
+
+
+def test_validate_path_returns_200_inside_root(security_env, tmp_path):
+    root = tmp_path / "allowed"
+    root.mkdir()
+    inside = root / "ok"
+    inside.mkdir()
+    security_env(SCAN_ROOTS=str(root))
+
+    import importlib
+
+    from web.backend import main as backend_main
+
+    importlib.reload(backend_main)
+    from fastapi.testclient import TestClient
+
+    client = TestClient(backend_main.app)
+    r = client.post("/api/validate-path", json={"path": str(inside)})
+    assert r.status_code == 200

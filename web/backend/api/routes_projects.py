@@ -308,6 +308,14 @@ async def refresh_project_analysis(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Path-jail check on the DB-stored project path.
+    from web.backend.security.path_jail import PathJailError, resolve_and_check
+
+    try:
+        resolve_and_check(project.path)
+    except PathJailError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     # Verify path still exists
     project_path = Path(project.path)
     if not project_path.exists():

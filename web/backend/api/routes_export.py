@@ -249,9 +249,15 @@ async def export_csv(analysis_id: int, session: Session = Depends(get_session)):
 @router.post("/validate-path", response_model=PathValidation)
 async def validate_path(payload: dict = Body(...)):
     """Validate a directory path."""
+    from web.backend.security.path_jail import PathJailError, resolve_and_check
+
     path = payload.get("path", "")
     if not isinstance(path, str):
         raise HTTPException(status_code=400, detail="path must be a string")
+    try:
+        resolve_and_check(path)
+    except PathJailError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     return validate_directory(path)
 
 
@@ -260,9 +266,27 @@ async def get_recent_paths(
     limit: int = 10,
     session: Session = Depends(get_session),
 ):
-    """Get recently used directory paths."""
-    paths = session.exec(
-        select(RecentPath).order_by(RecentPath.last_used.desc()).limit(limit)
-    ).all()
+    """Get recently used directory paths.
 
-    return paths
+    Paths outside the configured METTLE_SCAN_ROOTS are silently filtered out
+    so stale DB entries from a previous configuration don't leak. The list shrinks;
+    no error is surfaced.
+    """
+    from web.backend.security import settings
+    from web.backend.security.path_jail import PathJailError, resolve_and_check
+
+    rows = session.exec(select(RecentPath).order_by(RecentPath.last_used.desc()).limit(limit)).all()
+
+    if settings.scan_roots() is None:
+        return rows
+
+    # Filter row-by-row to preserve the original DB string (resolve_and_check
+    # canonicalises the path, so comparing resolved → raw doesn't round-trip).
+    survivors = []
+    for r in rows:
+        try:
+            resolve_and_check(r.path)
+        except PathJailError:
+            continue
+        survivors.append(r)
+    return survivors

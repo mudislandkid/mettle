@@ -270,6 +270,14 @@ async def start_analysis(
         # Fallback in case lifespan hasn't captured the loop yet (e.g. tests).
         main_loop = asyncio.get_running_loop()
 
+    # Path-jail check (no-op when METTLE_SCAN_ROOTS unset).
+    from web.backend.security.path_jail import PathJailError, resolve_and_check
+
+    try:
+        resolve_and_check(request.directory_path)
+    except PathJailError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     # Validate directory
     validation = validate_directory(request.directory_path)
     if not validation["exists"] or not validation["is_directory"]:
