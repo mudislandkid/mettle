@@ -11,6 +11,14 @@ export interface Tag {
   color: string
 }
 
+export interface SecretMatch {
+  file: string
+  line: number
+  kind: string
+  snippet_hash: string
+  severity: 'high' | 'medium'
+}
+
 export interface Project {
   id: number
   analysis_id: number
@@ -50,6 +58,10 @@ export interface Project {
   notes: string
   flags: string[]
   tags: Tag[]
+  // Phase C — scanner output
+  secrets_found: number
+  secrets_detail: SecretMatch[] | null
+  license_spdx: string | null
 }
 
 export interface TodoItem {
