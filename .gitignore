@@ -108,3 +108,6 @@ docs/reports/
 # --- Cursor (per-workspace ignore) ---
 # `.cursorignore` is editor-only metadata — keep out of history.
 .cursorignore
+
+# Phase D design hand-off archive (Claude Design output)
+docs/design/
