@@ -108,28 +108,29 @@ def build_frontend() -> None:
     log("Frontend built successfully.", Colors.GREEN)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Mettle web application")
-    parser.add_argument(
-        "--mode",
-        choices=["dev", "prod", "backend-only"],
-        default="dev",
-        help="Run mode: dev (both servers, with reload), prod (build frontend + serve via backend), backend-only",
-    )
-    parser.add_argument("--backend-host", default="127.0.0.1", help="Backend host (default: 127.0.0.1)")
-    parser.add_argument("--backend-port", type=int, default=8000, help="Backend port (default: 8000)")
-    parser.add_argument("--frontend-port", type=int, default=5173, help="Frontend dev port (default: 5173)")
-    parser.add_argument(
-        "--skip-install",
-        action="store_true",
-        help="Skip dependency installation checks (recommended for production).",
-    )
-    parser.add_argument(
-        "--auto-install",
-        action="store_true",
-        help="Run pip/npm install automatically if deps are missing. Off by default to avoid supply-chain surprises.",
-    )
-    args = parser.parse_args()
+def main(args: argparse.Namespace | None = None) -> int:
+    if args is None:
+        parser = argparse.ArgumentParser(description="Run Mettle web application")
+        parser.add_argument(
+            "--mode",
+            choices=["dev", "prod", "backend-only"],
+            default="dev",
+            help="Run mode: dev (both servers, with reload), prod (build frontend + serve via backend), backend-only",
+        )
+        parser.add_argument("--backend-host", default="127.0.0.1", help="Backend host (default: 127.0.0.1)")
+        parser.add_argument("--backend-port", type=int, default=8000, help="Backend port (default: 8000)")
+        parser.add_argument("--frontend-port", type=int, default=5173, help="Frontend dev port (default: 5173)")
+        parser.add_argument(
+            "--skip-install",
+            action="store_true",
+            help="Skip dependency installation checks (recommended for production).",
+        )
+        parser.add_argument(
+            "--auto-install",
+            action="store_true",
+            help="Run pip/npm install automatically if deps are missing. Off by default to avoid supply-chain surprises.",
+        )
+        args = parser.parse_args()
 
     log(f"\n{Colors.BOLD}Mettle Web Application{Colors.RESET}\n", Colors.GREEN)
 
@@ -226,6 +227,8 @@ def main() -> None:
         log(f"Error: {e}", Colors.RED)
         cleanup()
         sys.exit(1)
+
+    return 0
 
 
 if __name__ == "__main__":
