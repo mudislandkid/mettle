@@ -1,3 +1,5 @@
+import { getToken, promptForToken } from '../lib/auth'
+
 const API_BASE = '/api'
 
 function formatErrorDetail(detail: unknown): string {
@@ -26,13 +28,25 @@ export async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const token = getToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> | undefined),
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
   const response = await fetch(`${API_BASE}${endpoint}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
     ...options,
+    headers,
   })
+
+  if (response.status === 401) {
+    // Clear and prompt; throw so callers see the failure.
+    promptForToken()
+    throw new Error('Authentication required.')
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { detail?: unknown } | null
