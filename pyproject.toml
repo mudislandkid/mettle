@@ -3,14 +3,23 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "code-counter"
-version = "1.0.0"
-description = "Beautiful and powerful code analysis tool with CLI + optional web UI."
+name = "mettle"
+version = "0.9.0"
+description = "A triage dashboard for the AI-coding era. Honest line counts, health scoring, and cross-project insight for solo developers managing repo sprawl."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "Ice Point Labs" }]
-keywords = ["code", "analysis", "metrics", "loc", "lines-of-code"]
+authors = [{ name = "Greg Herriott" }]
+keywords = [
+    "code-analysis",
+    "loc",
+    "lines-of-code",
+    "metrics",
+    "code-quality",
+    "triage",
+    "dashboard",
+    "developer-tools",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -24,18 +33,16 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 
-# Core CLI / batch dependencies. The previously-pinned `pandas==2.2.0` was
-# unused anywhere in the codebase and has been dropped.
 dependencies = [
     "rich>=13.7.0",
     "reportlab>=4.0.8",
     "matplotlib>=3.8.2",
     "questionary>=2.0.1",
     "pyyaml>=6.0.1",
+    "click>=8.1.7",
 ]
 
 [project.optional-dependencies]
-# Install with: `pip install -e ".[web]"`
 web = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.27.0",
@@ -43,34 +50,45 @@ web = [
     "sqlalchemy>=2.0.25",
     "websockets>=12.0",
     "aiosqlite>=0.19.0",
-    # >=0.0.18 picks up the CVE-2024-24762 (ReDoS) fix.
     "python-multipart>=0.0.18",
+    "alembic>=1.13.0",
 ]
 
-# Install with: `pip install -e ".[watch]"`
 watch = [
     "watchfiles>=0.21",
 ]
 
-# Install with: `pip install -e ".[dev]"`
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
 ]
 
 [project.scripts]
-# `code-counter /some/path` → equivalent to `python -m code_counter /some/path`
-code-counter = "code_counter.__main__:main"
-# `code-counter-batch /some/parent/dir` → batch analysis CLI
-code-counter-batch = "batch_analyze:main"
+mettle = "mettle.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/mudislandkid/code-counter"
+Homepage = "https://github.com/mudislandkid/mettle"
+Documentation = "https://mudislandkid.github.io/mettle/"
+Issues = "https://github.com/mudislandkid/mettle/issues"
 
 [tool.setuptools]
-# `batch_analyze.py` lives at the project root rather than inside the
-# `code_counter` package, so list it as a standalone top-level module.
-packages = ["code_counter", "code_counter.analyzers", "code_counter.metrics", "code_counter.reporters", "code_counter.tests"]
+packages = ["mettle", "mettle.analyzers", "mettle.metrics", "mettle.reporters", "mettle.tests"]
 py-modules = ["batch_analyze"]
 
 [tool.setuptools.package-data]
-code_counter = ["config.yaml"]
+mettle = ["config.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.pytest.ini_options]
+testpaths = ["mettle/tests", "web/backend/tests"]
+python_files = ["test_*.py"]
