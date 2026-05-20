@@ -103,11 +103,7 @@ def _project_history(session: Session) -> tuple[dict[str, list[Project]], dict[i
     history: dict[str, list[Project]] = {}
     analyzed_at_by_id: dict[int, datetime] = {}
     for row in rows:
-        if isinstance(row, tuple):
-            project, analyzed_at = row[0], row[1]
-        else:
-            project = row
-            analyzed_at = session.get(Analysis, project.analysis_id).analyzed_at
+        project, analyzed_at = row[0], row[1]
         history.setdefault(project.path, []).append(project)
         analyzed_at_by_id[project.analysis_id] = analyzed_at
     return history, analyzed_at_by_id
@@ -325,3 +321,220 @@ def _section_no_recent_activity(
         )
     rows.sort(key=lambda e: e.headline_value, reverse=True)
     return rows
+
+
+# ---------------------------------------------------------------- public API
+
+SECTION_ORDER: list[tuple[str, str, str]] = [
+    ("grown_most", "Grown the most", "Code-line increase since {window}"),
+    (
+        "biggest_swing",
+        "Biggest LOC swing",
+        "Largest absolute change in code lines (either direction)",
+    ),
+    ("dependency_drift", "Dependency drift", "Most package additions, removals, and version bumps"),
+    (
+        "stalled_with_todos",
+        "Stalled with TODOs",
+        "No commits in {stale_days}d but TODOs still open",
+    ),
+    ("newly_stale", "Newly stale", "Crossed the {stale_days}d-no-commit line during the window"),
+    ("new_since", "New since {window}", "First analyzed inside the digest window"),
+    ("no_recent_activity", "No recent activity", "All analyses older than {window}"),
+]
+
+EMPTY_MESSAGES: dict[str, str] = {
+    "grown_most": "No projects had measurable growth in this window.",
+    "biggest_swing": "No projects had measurable code-line changes.",
+    "dependency_drift": "No dependency changes in this window.",
+    "stalled_with_todos": "No stalled projects with open TODOs.",
+    "newly_stale": "No projects crossed the stale-quiet line in this window.",
+    "new_since": "No projects first appeared in this window.",
+    "no_recent_activity": "All tracked projects have been analyzed in this window.",
+}
+
+
+def _format_window(days: int) -> str:
+    if days <= 1:
+        return "last day"
+    if days == 7:
+        return "last 7 days"
+    if days == 14:
+        return "last 2 weeks"
+    if days == 30:
+        return "last month"
+    if days == 90:
+        return "last quarter"
+    if days % 7 == 0:
+        return f"last {days // 7} weeks"
+    if days % 30 == 0:
+        return f"last {days // 30} months"
+    return f"last {days} days"
+
+
+def compute_digest(
+    session: Session,
+    *,
+    window_days: int = 7,
+    stale_days: int = 30,
+    top_n: int = 5,
+    now: datetime | None = None,
+) -> DigestReport:
+    """Read-only computation. Produces a DigestReport with 7 sections in
+    fixed order (empty sections still appear with empty_message)."""
+    now = now or datetime.now(timezone.utc)
+    window_start = now - timedelta(days=window_days)
+
+    history, analyzed_at_by_id = _project_history(session)
+
+    with_baseline_pairs: list[tuple[Project, Project]] = []
+    new_projects: list[Project] = []
+    no_recent_projects: list[Project] = []
+    for _path, project_history in history.items():
+        bucket, current, baseline = _classify_project(
+            project_history, analyzed_at_by_id, window_start
+        )
+        if bucket == "with_baseline":
+            with_baseline_pairs.append((current, baseline))
+        elif bucket == "new":
+            new_projects.append(current)
+        else:
+            no_recent_projects.append(current)
+
+    window_str = _format_window(window_days)
+    sections: list[DigestSection] = []
+    for kind, title_tmpl, desc_tmpl in SECTION_ORDER:
+        title = title_tmpl.format(window=window_str, stale_days=stale_days)
+        description = desc_tmpl.format(window=window_str, stale_days=stale_days)
+
+        if kind == "grown_most":
+            entries = _section_grown_most(with_baseline_pairs, top_n)
+        elif kind == "biggest_swing":
+            entries = _section_biggest_swing(with_baseline_pairs, top_n)
+        elif kind == "dependency_drift":
+            entries = _section_dependency_drift(with_baseline_pairs, top_n)
+        elif kind == "stalled_with_todos":
+            entries = _section_stalled_with_todos(with_baseline_pairs, top_n, now, stale_days)
+        elif kind == "newly_stale":
+            entries = _section_newly_stale(
+                with_baseline_pairs, top_n, now, window_start, stale_days
+            )
+        elif kind == "new_since":
+            entries = _section_new_since(new_projects, analyzed_at_by_id)
+        else:  # no_recent_activity
+            entries = _section_no_recent_activity(no_recent_projects, analyzed_at_by_id, now)
+
+        sections.append(
+            DigestSection(
+                kind=kind,
+                title=title,
+                description=description,
+                entries=entries,
+                empty_message=EMPTY_MESSAGES[kind],
+            )
+        )
+
+    return DigestReport(
+        generated_at=now,
+        window_days=window_days,
+        window_start=window_start,
+        stale_days=stale_days,
+        top_n=top_n,
+        total_projects=len(history),
+        projects_with_baseline=len(with_baseline_pairs),
+        projects_new=len(new_projects),
+        projects_no_recent=len(no_recent_projects),
+        sections=sections,
+    )
+
+
+# ---------------------------------------------------------------- renderers
+
+
+def render_markdown(report: DigestReport) -> str:
+    """Render a DigestReport as Markdown."""
+    out: list[str] = []
+    window_str = _format_window(report.window_days)
+    out.append(f"# Mettle digest — {window_str}")
+    out.append("")
+    out.append(
+        f"Generated {report.generated_at.strftime('%Y-%m-%d %H:%M UTC')}. "
+        f"Window: {window_str} "
+        f"({report.window_start.strftime('%Y-%m-%d')} → {report.generated_at.strftime('%Y-%m-%d')}). "
+        f"Stale threshold: {report.stale_days}d."
+    )
+    out.append("")
+    out.append(
+        f"**Coverage:** {report.total_projects} projects total · "
+        f"{report.projects_with_baseline} with baseline · "
+        f"{report.projects_new} new in window · "
+        f"{report.projects_no_recent} no recent activity"
+    )
+    out.append("")
+
+    for section in report.sections:
+        out.append(f"## {section.title}")
+        out.append(f"*{section.description}*")
+        out.append("")
+        if not section.entries:
+            out.append(f"_{section.empty_message}_")
+            out.append("")
+            continue
+        for entry in section.entries:
+            out.append(_render_entry_md(entry, section.kind))
+        out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_entry_md(entry: DigestEntry, section_kind: str) -> str:
+    link = entry.repo_url or f"./projects/{entry.project_id}"
+    head = f"- **[{entry.project_name}]({link})** — {entry.headline_label}"
+
+    if section_kind == "dependency_drift" and entry.extra:
+        bits = []
+        if entry.extra.get("added"):
+            names = ", ".join(d["name"] for d in entry.extra["added"][:5])
+            suffix = (
+                f" (+{len(entry.extra['added']) - 5} more)" if len(entry.extra["added"]) > 5 else ""
+            )
+            bits.append(f"  - Added: {names}{suffix}")
+        if entry.extra.get("removed"):
+            names = ", ".join(d["name"] for d in entry.extra["removed"][:5])
+            suffix = (
+                f" (+{len(entry.extra['removed']) - 5} more)"
+                if len(entry.extra["removed"]) > 5
+                else ""
+            )
+            bits.append(f"  - Removed: {names}{suffix}")
+        if entry.extra.get("bumped"):
+            ups = ", ".join(f"{b['name']} {b['from']}→{b['to']}" for b in entry.extra["bumped"][:5])
+            suffix = (
+                f" (+{len(entry.extra['bumped']) - 5} more)"
+                if len(entry.extra["bumped"]) > 5
+                else ""
+            )
+            bits.append(f"  - Bumped: {ups}{suffix}")
+        if bits:
+            head += "\n" + "\n".join(bits)
+
+    if section_kind in ("grown_most", "biggest_swing") and entry.baseline_value is not None:
+        head += f"  \n  *({int(entry.baseline_value):,} → {int(entry.current_value):,})*"
+
+    return head
+
+
+def render_json(report: DigestReport) -> dict:
+    """Recursive walk: datetime → ISO-8601 string; dataclass → dict."""
+    from dataclasses import asdict
+
+    def _convert(value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {k: _convert(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_convert(v) for v in value]
+        return value
+
+    return _convert(asdict(report))

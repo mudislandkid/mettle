@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, SQLModel, create_engine
 
 from mettle.digest import (
+    SECTION_ORDER,
     _classify_project,
     _diff_dependencies,
     _section_biggest_swing,
@@ -13,6 +14,9 @@ from mettle.digest import (
     _section_new_since,
     _section_newly_stale,
     _section_stalled_with_todos,
+    compute_digest,
+    render_json,
+    render_markdown,
 )
 from web.backend.database.models import Analysis, Project
 
@@ -365,3 +369,101 @@ def test_new_since_full_list_no_top_n():
         entries = _section_new_since(news, analyzed_at_by_id)
         # All 7, no cap
         assert len(entries) == 7
+
+
+# ---------- compute_digest end-to-end (4 tests) ----------
+
+
+def test_compute_digest_seven_sections_in_fixed_order():
+    """Even an empty DB produces all 7 sections in stable order."""
+    engine = _make_engine()
+    with Session(engine) as s:
+        report = compute_digest(s)
+    assert len(report.sections) == 7
+    kinds = [sec.kind for sec in report.sections]
+    assert kinds == [k for (k, _t, _d) in SECTION_ORDER]
+    assert report.total_projects == 0
+
+
+def test_compute_digest_coverage_counts():
+    """Three projects across three buckets — coverage counts correct."""
+    now = datetime(2026, 5, 20, tzinfo=timezone.utc)
+    engine = _make_engine()
+    with Session(engine) as s:
+        # with_baseline
+        _seed(s, "/a", now - timedelta(days=14), code_lines=100)
+        _seed(s, "/a", now - timedelta(days=1), code_lines=200)
+        # new
+        _seed(s, "/b", now - timedelta(days=2), code_lines=50)
+        # no_recent
+        _seed(s, "/c", now - timedelta(days=30), code_lines=300)
+        report = compute_digest(s, window_days=7, now=now)
+    assert report.total_projects == 3
+    assert report.projects_with_baseline == 1
+    assert report.projects_new == 1
+    assert report.projects_no_recent == 1
+
+
+def test_compute_digest_planted_growth_appears_in_grown_most():
+    now = datetime(2026, 5, 20, tzinfo=timezone.utc)
+    engine = _make_engine()
+    with Session(engine) as s:
+        _seed(s, "/a", now - timedelta(days=10), code_lines=100)
+        _seed(s, "/a", now - timedelta(days=1), code_lines=350)
+        report = compute_digest(s, window_days=7, now=now)
+    grown = next(sec for sec in report.sections if sec.kind == "grown_most")
+    assert len(grown.entries) == 1
+    assert grown.entries[0].headline_value == 250
+
+
+def test_compute_digest_empty_db():
+    engine = _make_engine()
+    with Session(engine) as s:
+        report = compute_digest(s)
+    assert report.total_projects == 0
+    for sec in report.sections:
+        assert sec.entries == []
+
+
+# ---------- renderers (3 tests) ----------
+
+
+def test_render_markdown_includes_header_and_coverage():
+    now = datetime(2026, 5, 20, tzinfo=timezone.utc)
+    engine = _make_engine()
+    with Session(engine) as s:
+        _seed(s, "/a", now - timedelta(days=10), code_lines=100)
+        _seed(s, "/a", now - timedelta(days=1), code_lines=350)
+        report = compute_digest(s, window_days=7, now=now)
+    md = render_markdown(report)
+    assert "# Mettle digest" in md
+    assert "Coverage:" in md
+    assert "## Grown the most" in md
+    assert "+250 lines" in md
+
+
+def test_render_markdown_empty_section_uses_empty_message():
+    engine = _make_engine()
+    with Session(engine) as s:
+        report = compute_digest(s)
+    md = render_markdown(report)
+    # All sections empty — each empty_message renders italicised
+    assert "_No projects had measurable growth in this window._" in md
+
+
+def test_render_json_is_serializable():
+    import json
+
+    now = datetime(2026, 5, 20, tzinfo=timezone.utc)
+    engine = _make_engine()
+    with Session(engine) as s:
+        _seed(s, "/a", now - timedelta(days=10), code_lines=100)
+        _seed(s, "/a", now - timedelta(days=1), code_lines=350)
+        report = compute_digest(s, window_days=7, now=now)
+    data = render_json(report)
+    # Round-trip through JSON
+    blob = json.dumps(data)
+    parsed = json.loads(blob)
+    assert parsed["window_days"] == 7
+    assert parsed["total_projects"] == 1
+    assert len(parsed["sections"]) == 7
