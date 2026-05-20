@@ -120,3 +120,45 @@ def test_validate_path_returns_200_inside_root(security_env, tmp_path):
     client = TestClient(backend_main.app)
     r = client.post("/api/validate-path", json={"path": str(inside)})
     assert r.status_code == 200
+
+
+def test_git_stats_returns_403_for_db_path_outside_roots(security_env, tmp_path):
+    """The /api/projects/{id}/git/stats route enforces the jail on the DB-stored path."""
+    root = tmp_path / "allowed"
+    root.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    security_env(SCAN_ROOTS=str(root))
+
+    import importlib
+
+    from web.backend import main as backend_main
+
+    importlib.reload(backend_main)
+    from fastapi.testclient import TestClient
+    from sqlmodel import Session
+
+    client = TestClient(backend_main.app)
+
+    # Seed an Analysis row first (Project.analysis_id is non-nullable).
+    from web.backend.database.connection import engine
+    from web.backend.database.models import Analysis, Project
+
+    with Session(engine) as session:
+        analysis = Analysis(directory_path=str(outside))
+        session.add(analysis)
+        session.commit()
+        session.refresh(analysis)
+
+        project = Project(
+            name="outside-project",
+            path=str(outside),
+            analysis_id=analysis.id,
+        )
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+        project_id = project.id
+
+    r = client.get(f"/api/projects/{project_id}/git/stats")
+    assert r.status_code == 403, r.text

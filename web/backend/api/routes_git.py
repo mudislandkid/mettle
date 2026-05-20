@@ -34,6 +34,14 @@ async def get_project_git_stats(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    # Path-jail check on the DB-stored project path.
+    from web.backend.security.path_jail import PathJailError, resolve_and_check
+
+    try:
+        resolve_and_check(project.path)
+    except PathJailError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
     # Check if it's a Git repository
     if not GitAnalyzerService.is_git_repository(project.path):
         return JSONResponse(
