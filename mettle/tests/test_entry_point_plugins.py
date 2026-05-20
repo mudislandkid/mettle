@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 
-from code_counter.analyzers.base import BaseAnalyzer
-from code_counter.analyzers import factory as factory_mod
+from mettle.analyzers.base import BaseAnalyzer
+from mettle.analyzers import factory as factory_mod
 
 
 class CobolAnalyzer(BaseAnalyzer):
@@ -16,7 +16,7 @@ class CobolAnalyzer(BaseAnalyzer):
         # The factory only ever calls .analyze() in real code paths; these
         # tests don't analyse any files, but we still need a no-op impl
         # so the class is concrete.
-        from code_counter.metrics.file_metrics import FileMetrics
+        from mettle.metrics.file_metrics import FileMetrics
         return FileMetrics()
 
 
@@ -25,7 +25,7 @@ class NoExtensionsAnalyzer(BaseAnalyzer):
     EXTENSIONS = []
 
     def analyze(self, content, file_size=0, line_count=0, byte_count=0):
-        from code_counter.metrics.file_metrics import FileMetrics
+        from mettle.metrics.file_metrics import FileMetrics
         return FileMetrics()
 
 
@@ -67,7 +67,7 @@ class TestEntryPointPlugins(unittest.TestCase):
             EXTENSIONS = ["bare", ".already", "  DOT  "]
 
             def analyze(self, content, file_size=0, line_count=0, byte_count=0):
-                from code_counter.metrics.file_metrics import FileMetrics
+                from mettle.metrics.file_metrics import FileMetrics
                 return FileMetrics()
 
         ep = _fake_ep('bare', lambda: BareExtAnalyzer)
@@ -84,7 +84,7 @@ class TestEntryPointPlugins(unittest.TestCase):
             EXTENSIONS = [".py"]
 
             def analyze(self, content, file_size=0, line_count=0, byte_count=0):
-                from code_counter.metrics.file_metrics import FileMetrics
+                from mettle.metrics.file_metrics import FileMetrics
                 return FileMetrics()
 
         ep = _fake_ep('python-strict', lambda: StricterPython)

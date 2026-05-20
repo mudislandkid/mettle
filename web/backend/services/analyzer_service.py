@@ -9,7 +9,7 @@ from dataclasses import asdict
 PROJECT_ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from code_counter.analyzers.code_analyzer import CodeAnalyzer
+from mettle.analyzers.code_analyzer import CodeAnalyzer
 from batch_analyze import (
     ProjectSummary,
     is_project_directory,

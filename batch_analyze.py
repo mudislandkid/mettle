@@ -34,8 +34,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from code_counter.analyzers.code_analyzer import CodeAnalyzer
-from code_counter.analyzers.dependency_detection import detect_dependencies
+from mettle.analyzers.code_analyzer import CodeAnalyzer
+from mettle.analyzers.dependency_detection import detect_dependencies
 
 
 # Known large public SDKs/frameworks that are typically vendored, not user projects

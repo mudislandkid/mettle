@@ -53,7 +53,7 @@ class ConfigManager:
                 # Don't silently fall through — surface which file is broken
                 # so a typo in ~/.code_counter.yaml is noticeable.
                 import sys
-                print(f"[code_counter] warning: failed to parse {path}: {exc}", file=sys.stderr)
+                print(f"[mettle] warning: failed to parse {path}: {exc}", file=sys.stderr)
                 continue
             self.config = loaded
             return

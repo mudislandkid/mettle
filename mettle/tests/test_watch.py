@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 from rich.console import Console
 
-from code_counter.metrics.file_metrics import FileMetrics
-from code_counter import watch as watch_mod
+from mettle.metrics.file_metrics import FileMetrics
+from mettle import watch as watch_mod
 
 
 def _make_metrics(total_files: int, **field_overrides) -> dict:

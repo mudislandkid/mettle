@@ -9,13 +9,13 @@ import unittest
 import os
 import tempfile
 from pathlib import Path
-from code_counter.metrics.file_metrics import FileMetrics
-from code_counter.reporters.base import BaseReporter
-from code_counter.reporters.console import ConsoleReporter
-from code_counter.reporters.markdown import MarkdownReporter
+from mettle.metrics.file_metrics import FileMetrics
+from mettle.reporters.base import BaseReporter
+from mettle.reporters.console import ConsoleReporter
+from mettle.reporters.markdown import MarkdownReporter
 
 try:
-    from code_counter.reporters.html import HTMLReporter
+    from mettle.reporters.html import HTMLReporter
     _HTML_AVAILABLE = True
 except ImportError:
     _HTML_AVAILABLE = False

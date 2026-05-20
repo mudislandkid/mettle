@@ -187,7 +187,7 @@ class AnalyzerFactory:
             try:
                 # Import the module
                 module_name = f".{file_path.stem}"
-                module = importlib.import_module(module_name, package="code_counter.analyzers")
+                module = importlib.import_module(module_name, package="mettle.analyzers")
                 
                 # Look for analyzer classes
                 for name, obj in inspect.getmembers(module, inspect.isclass):
@@ -240,12 +240,12 @@ class AnalyzerFactory:
             try:
                 obj = ep.load()
             except Exception as exc:
-                _log.warning("code_counter analyzer plugin %r failed to load: %s", ep.name, exc)
+                _log.warning("mettle analyzer plugin %r failed to load: %s", ep.name, exc)
                 continue
 
             if not (inspect.isclass(obj) and issubclass(obj, BaseAnalyzer) and obj is not BaseAnalyzer):
                 _log.warning(
-                    "code_counter analyzer plugin %r resolved to %r which isn't a BaseAnalyzer subclass; skipping.",
+                    "mettle analyzer plugin %r resolved to %r which isn't a BaseAnalyzer subclass; skipping.",
                     ep.name, obj,
                 )
                 continue
@@ -254,7 +254,7 @@ class AnalyzerFactory:
             extensions = getattr(obj, 'EXTENSIONS', None)
             if not extensions:
                 _log.warning(
-                    "code_counter analyzer plugin %r (language %r) declares no EXTENSIONS; skipping.",
+                    "mettle analyzer plugin %r (language %r) declares no EXTENSIONS; skipping.",
                     ep.name, language,
                 )
                 continue
