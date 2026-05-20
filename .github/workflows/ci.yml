@@ -40,3 +40,38 @@ jobs:
 
       - name: Self-scan smoke test (non-interactive)
         run: python -m mettle check .
+
+      - name: Security wiring smoke
+        env:
+          METTLE_TOKEN: ci-test-token-do-not-use
+          METTLE_SCAN_ROOTS: ${{ github.workspace }}
+        run: |
+          python -m uvicorn web.backend.main:app --host 127.0.0.1 --port 8765 &
+          SERVER_PID=$!
+          # Wait for the server to come up; bail after 10s. 401 counts as "up" — it's
+          # the expected response without the header.
+          for i in $(seq 1 20); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8765/api/projects/ || echo "000")
+            if [ "$STATUS" = "401" ] || [ "$STATUS" = "200" ]; then
+              break
+            fi
+            sleep 0.5
+          done
+          # No token -> 401
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8765/api/projects/)
+          if [ "$STATUS" != "401" ]; then
+            echo "Expected 401 without token, got $STATUS"
+            kill $SERVER_PID 2>/dev/null
+            exit 1
+          fi
+          # Correct token -> 200
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ci-test-token-do-not-use" \
+            http://127.0.0.1:8765/api/projects/)
+          if [ "$STATUS" != "200" ]; then
+            echo "Expected 200 with token, got $STATUS"
+            kill $SERVER_PID 2>/dev/null
+            exit 1
+          fi
+          kill $SERVER_PID 2>/dev/null
+          echo "Security wiring smoke OK"
