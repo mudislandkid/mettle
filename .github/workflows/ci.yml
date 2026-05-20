@@ -38,5 +38,5 @@ jobs:
       - name: pytest web backend
         run: pytest web/backend/tests/ -q
 
-      - name: Self-scan smoke test
-        run: python -m mettle scan . --no-pdf --no-html
+      - name: Self-scan smoke test (non-interactive)
+        run: python -m mettle check .
