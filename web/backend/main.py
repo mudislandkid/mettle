@@ -28,15 +28,23 @@ async def lifespan(app: FastAPI):
     yield
 
 
+# Read the debug flag once at startup. Disabling docs at the constructor level
+# means there's no auth-bypass surface to worry about — the routes simply don't exist.
+_debug = security_settings.is_debug()
+
 app = FastAPI(
     title="Mettle Web API",
     description="Triage dashboard for the AI-coding era",
     version="0.9.0",
+    docs_url="/docs" if _debug else None,
+    openapi_url="/openapi.json" if _debug else None,
+    redoc_url=None,
     lifespan=lifespan,
 )
 
-# CORS middleware — origins from METTLE_CORS_ORIGINS, defaults to loopback list.
-# allow_credentials gated on token presence; methods/headers narrowed from "*".
+# Security middleware order matters:
+#   CORS first (handles preflight OPTIONS before any auth check)
+#   TokenAuth second (rejects unauthenticated requests before they reach routes)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=security_settings.cors_origins(),
@@ -44,6 +52,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+from .security.auth import TokenAuthMiddleware  # noqa: E402 — must come after app
+
+app.add_middleware(TokenAuthMiddleware, token=security_settings.token())
+
+from .security.startup import validate_or_die  # noqa: E402
+
+validate_or_die()
 
 # API routes
 app.include_router(
