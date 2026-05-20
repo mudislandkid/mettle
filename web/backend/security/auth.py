@@ -13,6 +13,8 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from . import settings
+
 log = logging.getLogger("mettle.security")
 
 
@@ -42,3 +44,33 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
                 headers={"WWW-Authenticate": 'Bearer realm="mettle"'},
             )
         return await call_next(request)
+
+
+async def authorize_websocket(websocket) -> str | None:
+    """Validate a WebSocket handshake. Returns the subprotocol to echo on accept(),
+    or None when the token is unset (no auth required) or after the handshake
+    has been rejected (close() already called inside).
+
+    Callers must check the return BEFORE calling websocket.accept(). When auth
+    is required and the handshake fails, this function closes the socket with
+    code 1008 and the caller should simply return.
+    """
+    expected = settings.token()
+    if expected is None:
+        return None  # no auth — caller should accept() with no subprotocol
+
+    origin = websocket.headers.get("origin", "")
+    if origin and origin not in settings.cors_origins():
+        log.warning("WS rejected: origin %r not in METTLE_CORS_ORIGINS", origin)
+        await websocket.close(code=1008, reason="origin not allowed")
+        return None
+
+    protocols = websocket.headers.get("sec-websocket-protocol", "")
+    parts = [p.strip() for p in protocols.split(",") if p.strip()]
+    if len(parts) != 2 or parts[0] != "mettle.bearer":
+        await websocket.close(code=1008, reason="missing or malformed bearer subprotocol")
+        return None
+    if not hmac.compare_digest(parts[1], expected):
+        await websocket.close(code=1008, reason="invalid bearer")
+        return None
+    return "mettle.bearer"
