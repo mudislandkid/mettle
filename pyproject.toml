@@ -96,6 +96,8 @@ ignore = [
 # web backend files that do sys.path surgery before importing project modules
 "web/backend/services/analyzer_service.py" = ["E402"]
 "web/backend/api/routes_export.py" = ["E402"]
+# alembic + sqlmodel imports cause oscillating isort behavior; suppress I001
+"web/backend/database/connection.py" = ["I001"]
 
 [tool.pytest.ini_options]
 testpaths = ["mettle/tests", "web/backend/tests"]
