@@ -11,6 +11,8 @@ individual files. It handles:
 """
 
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 
@@ -19,6 +21,9 @@ from ..metrics.file_metrics import FileMetrics
 from .cache import FileMetricsCache, get_default_cache
 from .factory import AnalyzerFactory
 from .test_detection import is_test_file as is_test_file  # noqa: F401
+
+if TYPE_CHECKING:
+    from ..secrets import SecretScanner
 
 
 class FileAnalyzer:
@@ -39,17 +44,30 @@ class FileAnalyzer:
     """
 
     def __init__(
-        self, debug=False, max_lines=0, exclude_types=None, cache: FileMetricsCache | None = None
+        self,
+        debug=False,
+        max_lines=0,
+        exclude_types=None,
+        cache: FileMetricsCache | None = None,
+        secret_scanner: "SecretScanner | None" = None,
+        project_root: "Path | None" = None,
     ):
         """
         Initialize the FileAnalyzer.
 
         Args:
-            debug: Whether to enable debug logging
-            max_lines: Maximum number of lines for a file to be analyzed
-            exclude_types: List of file types to exclude
+            debug: Whether to enable debug logging.
+            max_lines: Maximum number of lines for a file to be analyzed.
+            exclude_types: List of file types to exclude.
             cache: Optional FileMetricsCache. Defaults to the process-wide
                 singleton; pass `FileMetricsCache(enabled=False)` to bypass.
+            secret_scanner: Optional SecretScanner. When provided, every
+                analysed file is also scanned for secrets and the findings
+                are appended to `self.secret_findings`. Cached files reuse
+                the cached findings without re-reading the file.
+            project_root: Required when `secret_scanner` is set. Used to
+                compute the file path relative to the project root for
+                inclusion in SecretMatch entries.
         """
         self.console = Console()
         self.config_manager = ConfigManager()
@@ -58,6 +76,9 @@ class FileAnalyzer:
         self.exclude_types = exclude_types or []
         self.analyzer_factory = AnalyzerFactory()
         self.cache = cache if cache is not None else get_default_cache()
+        self._secret_scanner = secret_scanner
+        self._project_root = project_root
+        self.secret_findings: list[dict] = []
 
     # Extensions that are always binary (compiled, compressed, media, etc.)
     BINARY_EXTENSIONS = {
@@ -389,6 +410,16 @@ class FileAnalyzer:
 
         return True
 
+    def _relative_to_project_root(self, file_path: str) -> str:
+        """Return file_path relative to the project root in POSIX style.
+        Falls back to the absolute path when relativisation fails."""
+        if self._project_root is None:
+            return file_path
+        try:
+            return str(Path(file_path).relative_to(self._project_root).as_posix())
+        except ValueError:
+            return file_path
+
     def analyze_file(self, file_path: str) -> tuple[str, FileMetrics]:
         """Analyze a single file and return ``(language, metrics)``.
 
@@ -413,7 +444,10 @@ class FileAnalyzer:
 
         cached = self.cache.get(file_path, cache_key_mtime, cache_key_size)
         if cached is not None:
-            return cached  # (language, metrics)
+            language, cached_metrics, cached_findings = cached
+            if cached_findings:
+                self.secret_findings.extend(cached_findings)
+            return language, cached_metrics
 
         try:
             with open(file_path, encoding="utf-8", errors="replace") as f:
@@ -439,7 +473,32 @@ class FileAnalyzer:
                 self.console.print(f"  - Blank lines: {file_metrics.blank_lines}")
                 self.console.print(f"  - File size: {cache_key_size / 1024:.1f} KB")
 
-            self.cache.put(file_path, cache_key_mtime, cache_key_size, language, file_metrics)
+            # Scan for secrets while we have the content in memory.
+            file_findings: list[dict] = []
+            if self._secret_scanner is not None and self._project_root is not None:
+                rel = self._relative_to_project_root(file_path)
+                if not self._secret_scanner.should_skip_path(rel):
+                    matches = self._secret_scanner.scan_file(rel, content)
+                    file_findings = [
+                        {
+                            "file": m.file,
+                            "line": m.line,
+                            "kind": m.kind,
+                            "snippet_hash": m.snippet_hash,
+                            "severity": m.severity,
+                        }
+                        for m in matches
+                    ]
+                    self.secret_findings.extend(file_findings)
+
+            self.cache.put(
+                file_path,
+                cache_key_mtime,
+                cache_key_size,
+                language,
+                file_metrics,
+                secret_findings=file_findings,
+            )
             return language, file_metrics
 
         except (FileNotFoundError, PermissionError):
