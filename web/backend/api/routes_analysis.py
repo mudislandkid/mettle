@@ -196,6 +196,9 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
                     interfaces=result.get("interfaces", 0),
                     type_aliases=result.get("type_aliases", 0),
                     enums=result.get("enums", 0),
+                    secrets_found=result.get("secrets_found", 0),
+                    secrets_detail=result.get("secrets_detail"),
+                    license_spdx=result.get("license_spdx"),
                 )
                 session.add(project)
 
