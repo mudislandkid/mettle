@@ -91,6 +91,10 @@ class ProjectResponse(BaseModel):
     interfaces: int = 0
     type_aliases: int = 0
     enums: int = 0
+    # Phase C — scanner output
+    secrets_found: int = 0
+    secrets_detail: list[dict] | None = None
+    license_spdx: str | None = None
     notes: str = ""
     flags: list[str] = []
     tags: list[TagResponse] = []
