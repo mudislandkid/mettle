@@ -3,9 +3,9 @@
 import csv
 import json
 from io import StringIO
-from fastapi import APIRouter, Body, Depends, HTTPException
-from fastapi.responses import PlainTextResponse, StreamingResponse
 
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 
 # Characters Excel / Google Sheets / LibreOffice will treat as the start of a
 # formula if they appear at the very beginning of a cell. Wrapping such cells
@@ -20,6 +20,8 @@ def _safe_cell(value: object) -> str:
         # A leading apostrophe forces text mode in every major spreadsheet.
         return "'" + s
     return s
+
+
 from sqlmodel import Session, select
 
 from ..database.connection import get_session
@@ -71,22 +73,24 @@ async def export_markdown(analysis_id: int, session: Session = Depends(get_sessi
     total_functions = sum(p.functions for p in projects)
     total_classes = sum(p.classes for p in projects)
 
-    lines.extend([
-        "",
-        "## Overall Totals",
-        "",
-        "| Metric | Value |",
-        "|--------|------:|",
-        f"| Total Projects | {len(projects):,} |",
-        f"| Total Files | {total_files:,} |",
-        f"| Total Lines | {total_lines:,} |",
-        f"| Total Code Lines | {total_code:,} |",
-        f"| Total Functions | {total_functions:,} |",
-        f"| Total Classes | {total_classes:,} |",
-        "",
-        "## Languages by Project",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Overall Totals",
+            "",
+            "| Metric | Value |",
+            "|--------|------:|",
+            f"| Total Projects | {len(projects):,} |",
+            f"| Total Files | {total_files:,} |",
+            f"| Total Lines | {total_lines:,} |",
+            f"| Total Code Lines | {total_code:,} |",
+            f"| Total Functions | {total_functions:,} |",
+            f"| Total Classes | {total_classes:,} |",
+            "",
+            "## Languages by Project",
+            "",
+        ]
+    )
 
     for p in projects:
         langs = ", ".join(p.languages) if p.languages else "Unknown"
@@ -184,9 +188,23 @@ async def export_csv(analysis_id: int, session: Session = Depends(get_session)):
     output = StringIO()
     writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL, lineterminator="\n")
     headers = [
-        "Name", "Path", "Directories", "Files", "Total Lines", "Code Lines",
-        "Comment Lines", "Blank Lines", "Code %", "Functions", "Classes",
-        "TODOs", "Imports", "Avg Lines/File", "Languages", "Flags", "Tags",
+        "Name",
+        "Path",
+        "Directories",
+        "Files",
+        "Total Lines",
+        "Code Lines",
+        "Comment Lines",
+        "Blank Lines",
+        "Code %",
+        "Functions",
+        "Classes",
+        "TODOs",
+        "Imports",
+        "Avg Lines/File",
+        "Languages",
+        "Flags",
+        "Tags",
     ]
     writer.writerow(headers)
 
@@ -196,25 +214,27 @@ async def export_csv(analysis_id: int, session: Session = Depends(get_session)):
         flags = "|".join(f.flag_type for f in p.flags)
         tags = "|".join(pt.tag.name for pt in p.project_tags)
 
-        writer.writerow([
-            _safe_cell(p.name),
-            _safe_cell(p.path),
-            p.total_dirs,
-            p.total_files,
-            p.total_lines,
-            p.code_lines,
-            p.comment_lines,
-            p.blank_lines,
-            f"{code_pct:.1f}",
-            p.functions,
-            p.classes,
-            p.todos,
-            p.imports,
-            p.avg_lines_per_file,
-            _safe_cell(langs),
-            _safe_cell(flags),
-            _safe_cell(tags),
-        ])
+        writer.writerow(
+            [
+                _safe_cell(p.name),
+                _safe_cell(p.path),
+                p.total_dirs,
+                p.total_files,
+                p.total_lines,
+                p.code_lines,
+                p.comment_lines,
+                p.blank_lines,
+                f"{code_pct:.1f}",
+                p.functions,
+                p.classes,
+                p.todos,
+                p.imports,
+                p.avg_lines_per_file,
+                _safe_cell(langs),
+                _safe_cell(flags),
+                _safe_cell(tags),
+            ]
+        )
 
     content = output.getvalue()
 
@@ -242,9 +262,7 @@ async def get_recent_paths(
 ):
     """Get recently used directory paths."""
     paths = session.exec(
-        select(RecentPath)
-        .order_by(RecentPath.last_used.desc())
-        .limit(limit)
+        select(RecentPath).order_by(RecentPath.last_used.desc()).limit(limit)
     ).all()
 
     return paths

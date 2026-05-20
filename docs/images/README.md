@@ -16,4 +16,4 @@ This directory is for storing documentation images, including the banner image f
 - Programming language icons with code counter metrics
 - A minimalist design with the project name and a tagline
 
-Once you've created your banner image, place it in this directory and it will automatically appear in the README.md at the project root. 
+Once you've created your banner image, place it in this directory and it will automatically appear in the README.md at the project root.

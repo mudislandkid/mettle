@@ -1,22 +1,21 @@
 """Analyzer service wrapping existing Mettle modules."""
 
 import sys
-from pathlib import Path
-from typing import Optional, Callable
+from collections.abc import Callable
 from dataclasses import asdict
+from pathlib import Path
 
 # Add parent directories to path to import existing modules
 PROJECT_ROOT = Path(__file__).parents[3]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from mettle.analyzers.code_analyzer import CodeAnalyzer
 from batch_analyze import (
-    ProjectSummary,
-    is_project_directory,
-    is_owned_by_user,
-    is_known_public_sdk,
     analyze_project,
+    is_known_public_sdk,
+    is_owned_by_user,
+    is_project_directory,
 )
+from mettle.analyzers.code_analyzer import CodeAnalyzer
 
 
 class AnalyzerService:
@@ -28,7 +27,7 @@ class AnalyzerService:
     def discover_projects(
         self,
         directory: str,
-        github_user: Optional[str] = None,
+        github_user: str | None = None,
         skip_public_sdks: bool = False,
         include_internal: bool = False,
     ) -> list[Path]:
@@ -45,10 +44,7 @@ class AnalyzerService:
         subdirs = [d for d in parent_dir.iterdir() if d.is_dir()]
 
         # Filter to project directories
-        project_dirs = [
-            d for d in subdirs
-            if is_project_directory(d, include_internal)
-        ]
+        project_dirs = [d for d in subdirs if is_project_directory(d, include_internal)]
 
         # Filter out known public SDKs
         if skip_public_sdks:
@@ -64,7 +60,7 @@ class AnalyzerService:
         self,
         project_dirs: list[Path],
         max_files: int = 0,
-        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> list[dict]:
         """Analyze list of projects, returning serializable results."""
         results = []
@@ -91,11 +87,11 @@ class AnalyzerService:
     def analyze_directory(
         self,
         directory: str,
-        github_user: Optional[str] = None,
+        github_user: str | None = None,
         skip_public_sdks: bool = False,
         include_internal: bool = False,
         max_files: int = 0,
-        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+        progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> list[dict]:
         """Full analysis pipeline: discover and analyze projects."""
         project_dirs = self.discover_projects(

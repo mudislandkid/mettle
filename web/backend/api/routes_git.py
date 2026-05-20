@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from ..database.connection import get_session
 from ..database.models import Project
-from ..schemas.git import GitStatsResponse, GitCommitStats, GitErrorResponse, TimePatterns
+from ..schemas.git import GitCommitStats, GitErrorResponse, GitStatsResponse, TimePatterns
 from ..services.git_analyzer_service import GitAnalyzerService
 
 router = APIRouter()
@@ -43,7 +43,7 @@ async def get_project_git_stats(
                 is_git_repo=False,
                 project_id=project.id,
                 project_name=project.name,
-            ).model_dump()
+            ).model_dump(),
         )
 
     # Get commit history
@@ -58,29 +58,26 @@ async def get_project_git_stats(
                     is_git_repo=True,
                     project_id=project.id,
                     project_name=project.name,
-                ).model_dump()
+                ).model_dump(),
             )
 
         # Convert commits to schema format
-        commits_schema = [
-            GitCommitStats(**commit_data)
-            for commit_data in git_data['commits']
-        ]
+        commits_schema = [GitCommitStats(**commit_data) for commit_data in git_data["commits"]]
 
         # Build response
         response = GitStatsResponse(
             project_id=project.id,
             project_name=project.name,
-            is_git_repo=git_data['is_git_repo'],
-            total_commits=git_data['total_commits'],
-            first_commit_date=git_data['first_commit_date'],
-            last_commit_date=git_data['last_commit_date'],
-            unique_authors=git_data['unique_authors'],
+            is_git_repo=git_data["is_git_repo"],
+            total_commits=git_data["total_commits"],
+            first_commit_date=git_data["first_commit_date"],
+            last_commit_date=git_data["last_commit_date"],
+            unique_authors=git_data["unique_authors"],
             commits=commits_schema,
-            monthly_commits=git_data['monthly_commits'],
-            weekly_commits=git_data['weekly_commits'],
-            heatmap_data=git_data['heatmap_data'],
-            time_patterns=TimePatterns(**git_data['time_patterns']),
+            monthly_commits=git_data["monthly_commits"],
+            weekly_commits=git_data["weekly_commits"],
+            heatmap_data=git_data["heatmap_data"],
+            time_patterns=TimePatterns(**git_data["time_patterns"]),
         )
 
         return response
@@ -95,5 +92,5 @@ async def get_project_git_stats(
                 is_git_repo=True,
                 project_id=project.id,
                 project_name=project.name,
-            ).model_dump()
+            ).model_dump(),
         )

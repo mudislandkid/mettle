@@ -9,10 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
 
 from ..database.models import Project
-
 
 # Component weights. Sum to 1.0 so the final score lives on a 0-100 scale.
 WEIGHTS = {
@@ -28,14 +26,14 @@ WEIGHTS = {
 @dataclass
 class HealthComponent:
     name: str
-    score: float          # 0-100
-    weight: float         # 0-1
-    detail: str           # short human-readable explanation
+    score: float  # 0-100
+    weight: float  # 0-1
+    detail: str  # short human-readable explanation
 
 
 @dataclass
 class HealthBreakdown:
-    score: float                       # 0-100, rounded to one decimal
+    score: float  # 0-100, rounded to one decimal
     components: list[HealthComponent]
 
 
@@ -153,7 +151,7 @@ def _metadata_score(project: Project) -> tuple[float, str]:
     return _clamp(points), detail
 
 
-def compute_health(project: Project, now: Optional[datetime] = None) -> HealthBreakdown:
+def compute_health(project: Project, now: datetime | None = None) -> HealthBreakdown:
     """Compute the composite 0-100 health score and its component breakdown."""
     now = now or datetime.now(timezone.utc)
 

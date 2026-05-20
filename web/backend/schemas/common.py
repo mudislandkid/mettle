@@ -1,11 +1,13 @@
 """Common Pydantic schemas."""
 
 from datetime import datetime
+
 from pydantic import BaseModel
 
 
 class PathValidation(BaseModel):
     """Response for path validation."""
+
     exists: bool
     is_directory: bool
     path: str
@@ -13,6 +15,7 @@ class PathValidation(BaseModel):
 
 class RecentPathResponse(BaseModel):
     """Response model for a recent path."""
+
     id: int
     path: str
     last_used: datetime
@@ -24,5 +27,6 @@ class RecentPathResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Generic message response."""
+
     message: str
     success: bool = True

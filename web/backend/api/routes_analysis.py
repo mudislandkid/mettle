@@ -4,21 +4,28 @@ import asyncio
 import logging
 import threading
 from datetime import datetime, timezone
-from typing import Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, BackgroundTasks
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlmodel import Session, select
 
-from ..database.connection import get_session, engine
+from ..database.connection import engine, get_session
 from ..database.models import Analysis, Project, RecentPath
-from .routes_projects import get_project_response
 from ..schemas.analysis import (
     AnalysisCreate,
-    AnalysisResponse,
     AnalysisListResponse,
+    AnalysisResponse,
     AnalysisStatus,
-    ProjectResponse,
 )
 from ..services.analyzer_service import AnalyzerService, validate_directory
+from .routes_projects import get_project_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -27,7 +34,7 @@ router = APIRouter()
 # (websocket handler) and read from broadcast_progress on the same loop, so a
 # simple dict + per-call snapshot is enough — but we still take a lock on writes
 # to be safe against future code that might mutate this from threads.
-active_connections: Dict[int, list[WebSocket]] = {}
+active_connections: dict[int, list[WebSocket]] = {}
 _connections_lock = threading.Lock()
 
 # Loop captured by main.py lifespan startup so background-thread analysis tasks
@@ -56,12 +63,12 @@ async def broadcast_progress(analysis_id: int, data: dict):
                 active_connections.pop(analysis_id, None)
 
 
-def _parse_iso(raw: Optional[str]) -> Optional[datetime]:
+def _parse_iso(raw: str | None) -> datetime | None:
     """Parse the ISO-8601 string returned by `git log %aI` into a datetime."""
     if not raw:
         return None
     try:
-        return datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
     except ValueError:
         return None
 
@@ -90,14 +97,17 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
             session.commit()
 
             # Send initial progress
-            schedule_broadcast(analysis_id, {
-                "status": "running",
-                "current": 0,
-                "total": 0,
-                "project_name": "",
-                "message": "Discovering projects...",
-                "logs": []
-            })
+            schedule_broadcast(
+                analysis_id,
+                {
+                    "status": "running",
+                    "current": 0,
+                    "total": 0,
+                    "project_name": "",
+                    "message": "Discovering projects...",
+                    "logs": [],
+                },
+            )
 
             # Create analyzer service
             service = AnalyzerService()
@@ -113,25 +123,31 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
             total_projects = len(project_dirs)
 
             # Send discovery complete message
-            schedule_broadcast(analysis_id, {
-                "status": "running",
-                "current": 0,
-                "total": total_projects,
-                "project_name": "",
-                "message": f"Found {total_projects} projects. Starting analysis...",
-                "logs": [f"Discovered {total_projects} projects in {directory}"]
-            })
+            schedule_broadcast(
+                analysis_id,
+                {
+                    "status": "running",
+                    "current": 0,
+                    "total": total_projects,
+                    "project_name": "",
+                    "message": f"Found {total_projects} projects. Starting analysis...",
+                    "logs": [f"Discovered {total_projects} projects in {directory}"],
+                },
+            )
 
             # Define progress callback
             def progress_callback(current: int, total: int, project_name: str):
-                schedule_broadcast(analysis_id, {
-                    "status": "running",
-                    "current": current,
-                    "total": total,
-                    "project_name": project_name,
-                    "message": f"Analyzing project {current}/{total}: {project_name}",
-                    "logs": [f"[{current}/{total}] Analyzing: {project_name}"]
-                })
+                schedule_broadcast(
+                    analysis_id,
+                    {
+                        "status": "running",
+                        "current": current,
+                        "total": total,
+                        "project_name": project_name,
+                        "message": f"Analyzing project {current}/{total}: {project_name}",
+                        "logs": [f"[{current}/{total}] Analyzing: {project_name}"],
+                    },
+                )
 
             # Analyze projects
             results = service.analyze_projects(
@@ -200,19 +216,22 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
             session.commit()
 
             # Send completion message
-            schedule_broadcast(analysis_id, {
-                "status": "completed",
-                "current": total_projects,
-                "total": total_projects,
-                "project_name": "",
-                "message": f"Analysis complete! Analyzed {len(results)} projects.",
-                "logs": [
-                    f"Analysis completed successfully",
-                    f"Total projects: {len(results)}",
-                    f"Total files: {total_files:,}",
-                    f"Total lines: {total_lines:,}"
-                ]
-            })
+            schedule_broadcast(
+                analysis_id,
+                {
+                    "status": "completed",
+                    "current": total_projects,
+                    "total": total_projects,
+                    "project_name": "",
+                    "message": f"Analysis complete! Analyzed {len(results)} projects.",
+                    "logs": [
+                        "Analysis completed successfully",
+                        f"Total projects: {len(results)}",
+                        f"Total files: {total_files:,}",
+                        f"Total lines: {total_lines:,}",
+                    ],
+                },
+            )
 
         except Exception as exc:
             logger.exception("analysis %s failed", analysis_id)
@@ -225,15 +244,18 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
                 analysis.error_message = f"{type(exc).__name__}: {exc}"
                 session.commit()
 
-            schedule_broadcast(analysis_id, {
-                "status": "failed",
-                "current": 0,
-                "total": 0,
-                "project_name": "",
-                "message": generic_message,
-                "error": type(exc).__name__,
-                "logs": [generic_message],
-            })
+            schedule_broadcast(
+                analysis_id,
+                {
+                    "status": "failed",
+                    "current": 0,
+                    "total": 0,
+                    "project_name": "",
+                    "message": generic_message,
+                    "error": type(exc).__name__,
+                    "logs": [generic_message],
+                },
+            )
 
 
 @router.post("/start", response_model=dict)
@@ -254,12 +276,16 @@ async def start_analysis(
         raise HTTPException(status_code=400, detail="Invalid directory path")
 
     # Get or set filters
-    filters = request.filters.model_dump() if request.filters else {
-        "github_user": None,
-        "skip_public_sdks": True,
-        "max_files": 0,
-        "include_internal": False,
-    }
+    filters = (
+        request.filters.model_dump()
+        if request.filters
+        else {
+            "github_user": None,
+            "skip_public_sdks": True,
+            "max_files": 0,
+            "include_internal": False,
+        }
+    )
 
     # Create analysis record
     analysis = Analysis(
@@ -272,9 +298,7 @@ async def start_analysis(
     session.refresh(analysis)
 
     # Update recent paths
-    recent = session.exec(
-        select(RecentPath).where(RecentPath.path == validation["path"])
-    ).first()
+    recent = session.exec(select(RecentPath).where(RecentPath.path == validation["path"])).first()
     if recent:
         recent.last_used = datetime.now(timezone.utc)
         recent.use_count += 1
@@ -302,9 +326,7 @@ async def get_analysis(analysis_id: int, session: Session = Depends(get_session)
         raise HTTPException(status_code=404, detail="Analysis not found")
 
     # Load projects with flags and tags
-    projects = session.exec(
-        select(Project).where(Project.analysis_id == analysis_id)
-    ).all()
+    projects = session.exec(select(Project).where(Project.analysis_id == analysis_id)).all()
 
     project_responses = [get_project_response(p, session) for p in projects]
 
@@ -347,10 +369,7 @@ async def list_analyses(
 ):
     """List all analyses."""
     analyses = session.exec(
-        select(Analysis)
-        .order_by(Analysis.analyzed_at.desc())
-        .offset(offset)
-        .limit(limit)
+        select(Analysis).order_by(Analysis.analyzed_at.desc()).offset(offset).limit(limit)
     ).all()
 
     return [

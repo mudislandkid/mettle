@@ -1,22 +1,22 @@
 import re
-from typing import Tuple
-from .base import BaseAnalyzer, classify_lines, mask_string_literals
+
 from ..metrics.file_metrics import FileMetrics
+from .base import BaseAnalyzer, classify_lines, mask_string_literals
 
 
 class PythonAnalyzer(BaseAnalyzer):
-    FUNCTION_PATTERN = re.compile(r'^\s*(?:async\s+)?def\s+\w+\s*\(', re.MULTILINE)
-    CLASS_PATTERN = re.compile(r'^\s*class\s+\w+\s*[:\(]', re.MULTILINE)
-    IMPORT_PATTERN = re.compile(r'^\s*(?:import|from)\s+\S+', re.MULTILINE)
+    FUNCTION_PATTERN = re.compile(r"^\s*(?:async\s+)?def\s+\w+\s*\(", re.MULTILINE)
+    CLASS_PATTERN = re.compile(r"^\s*class\s+\w+\s*[:\(]", re.MULTILINE)
+    IMPORT_PATTERN = re.compile(r"^\s*(?:import|from)\s+\S+", re.MULTILINE)
 
-    DECORATOR_PATTERN = re.compile(r'^\s*@\w', re.MULTILINE)
+    DECORATOR_PATTERN = re.compile(r"^\s*@\w", re.MULTILINE)
     # Bounded character classes guard against catastrophic backtracking on
     # minified / pathological files that the old `\[.*for.*in.*\]` could hang on.
-    LIST_COMP_PATTERN = re.compile(r'\[[^\[\]\n]{1,300}\bfor\s+\w+\s+in\b[^\[\]\n]{0,300}\]')
-    LAMBDA_PATTERN = re.compile(r'\blambda\b[^:\n]{0,200}:')
+    LIST_COMP_PATTERN = re.compile(r"\[[^\[\]\n]{1,300}\bfor\s+\w+\s+in\b[^\[\]\n]{0,300}\]")
+    LAMBDA_PATTERN = re.compile(r"\blambda\b[^:\n]{0,200}:")
     F_STRING_PATTERN = re.compile(r'\bf[\'"]')
 
-    SINGLE_COMMENT = re.compile(r'#')
+    SINGLE_COMMENT = re.compile(r"#")
     # Triple-quoted strings can act as block comments (the common docstring case)
     # but they are also legitimate string literals. We treat them as block
     # comments only when the line they start on contains nothing else, which is
@@ -26,13 +26,13 @@ class PythonAnalyzer(BaseAnalyzer):
     def _strip_for_pattern_scan(self, content: str) -> str:
         masked = mask_string_literals(content)
         masked = self.DOCSTRING.sub(
-            lambda m: ''.join('\n' if c == '\n' else ' ' for c in m.group()),
+            lambda m: "".join("\n" if c == "\n" else " " for c in m.group()),
             masked,
         )
-        masked = re.sub(r'#[^\n]*', '', masked)
+        masked = re.sub(r"#[^\n]*", "", masked)
         return masked
 
-    def count_functions_and_classes(self, content: str) -> Tuple[int, int]:
+    def count_functions_and_classes(self, content: str) -> tuple[int, int]:
         clean = self._strip_for_pattern_scan(content)
         return len(self.FUNCTION_PATTERN.findall(clean)), len(self.CLASS_PATTERN.findall(clean))
 

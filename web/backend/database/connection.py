@@ -1,11 +1,13 @@
 """Database connection and session management."""
+
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
+
+from sqlalchemy import event
+from sqlmodel import Session, create_engine
 
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import event
-from sqlmodel import Session, create_engine
 
 from ..config import DATABASE_URL
 

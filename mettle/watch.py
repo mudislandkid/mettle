@@ -10,25 +10,30 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Iterable, Optional
 
 from rich.console import Console
 
 from .analyzers.code_analyzer import CodeAnalyzer
 
-
 _TRACKED_FIELDS = (
-    'total_files', 'total_lines', 'code_lines', 'comment_lines', 'blank_lines',
-    'functions', 'classes', 'todos', 'imports',
+    "total_files",
+    "total_lines",
+    "code_lines",
+    "comment_lines",
+    "blank_lines",
+    "functions",
+    "classes",
+    "todos",
+    "imports",
 )
 
 
 def _aggregate_totals(metrics: dict) -> dict[str, int]:
     """Reduce the analyzer's per-language metrics into the flat totals we diff."""
-    by_lang = metrics.get('metrics_by_language', {})
-    totals: dict[str, int] = {'total_files': int(metrics.get('total_files', 0))}
+    by_lang = metrics.get("metrics_by_language", {})
+    totals: dict[str, int] = {"total_files": int(metrics.get("total_files", 0))}
     for field in _TRACKED_FIELDS:
-        if field == 'total_files':
+        if field == "total_files":
             continue
         totals[field] = sum(getattr(m, field, 0) for m in by_lang.values())
     return totals
@@ -50,19 +55,17 @@ def _print_delta(console: Console, before: dict[str, int], after: dict[str, int]
         moved = True
         delta = a - b
         # TODO is the one metric where "more" is bad — invert the colour.
-        if field == 'todos':
-            colour = 'red' if delta > 0 else 'green'
+        if field == "todos":
+            colour = "red" if delta > 0 else "green"
         else:
-            colour = 'green' if delta > 0 else 'red'
-        sign = '+' if delta > 0 else ''
-        console.print(
-            f"  {field:>14}: {b:>10,} → {a:>10,}   [{colour}]{sign}{delta:,}[/{colour}]"
-        )
+            colour = "green" if delta > 0 else "red"
+        sign = "+" if delta > 0 else ""
+        console.print(f"  {field:>14}: {b:>10,} → {a:>10,}   [{colour}]{sign}{delta:,}[/{colour}]")
     if not moved:
         console.print("[dim]  (no metric changes)[/dim]")
 
 
-def _make_change_filter(analyzer: CodeAnalyzer) -> 'Callable[[Change, str], bool]':
+def _make_change_filter(analyzer: CodeAnalyzer) -> Callable[[Change, str], bool]:
     """Return a watchfiles change filter that drops paths inside excluded dirs.
 
     Imported lazily so this module doesn't blow up at import time when
@@ -76,8 +79,8 @@ def _make_change_filter(analyzer: CodeAnalyzer) -> 'Callable[[Change, str], bool
         # Mirror DirectoryAnalyzer.is_excluded() exactly so we don't trigger
         # re-runs for changes inside .git, node_modules, etc.
         def __call__(self, change: Change, path: str) -> bool:
-            norm = path.replace('\\', '/')
-            for part in norm.split('/'):
+            norm = path.replace("\\", "/")
+            for part in norm.split("/"):
                 if part in excluded_dirs:
                     return False
             return super().__call__(change, path)
@@ -92,7 +95,7 @@ def run_watch(args, console: Console) -> int:
     except ImportError:
         console.print(
             "[red]--watch requires the watchfiles package.[/red]\n"
-            "[yellow]Install it with:[/yellow] pip install -e \".[watch]\"  "
+            '[yellow]Install it with:[/yellow] pip install -e ".[watch]"  '
             "[dim](or:[/dim] pip install watchfiles[dim])[/dim]"
         )
         return 2
@@ -113,9 +116,11 @@ def run_watch(args, console: Console) -> int:
         exclude_dirs=args.exclude_dirs,
     )
 
-    debounce_ms = max(200, int(getattr(args, 'watch_debounce', 1500)))
+    debounce_ms = max(200, int(getattr(args, "watch_debounce", 1500)))
 
-    console.print(f"[bold]Watching[/bold] [blue]{target}[/blue]  [dim](debounce {debounce_ms}ms — Ctrl+C to stop)[/dim]")
+    console.print(
+        f"[bold]Watching[/bold] [blue]{target}[/blue]  [dim](debounce {debounce_ms}ms — Ctrl+C to stop)[/dim]"
+    )
 
     # Initial baseline analysis.
     initial = analyzer.analyze_directory(str(target))
@@ -136,7 +141,7 @@ def run_watch(args, console: Console) -> int:
             # Print a compact preview of what triggered the run.
             preview = list(changes)[:3]
             extra = len(changes) - len(preview)
-            paths = ', '.join(os.path.relpath(p, str(target)) for _, p in preview)
+            paths = ", ".join(os.path.relpath(p, str(target)) for _, p in preview)
             if extra > 0:
                 paths += f" (+{extra} more)"
             console.print(f"\n[cyan]changes:[/cyan] {paths}")

@@ -1,12 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+
 
 class BaseReporter(ABC):
     """Base class for all reporters."""
-    
-    def __init__(self, metrics_by_language: dict, language_stats: dict, total_files: int, total_dirs: int, largest_line_files: dict = None):
+
+    def __init__(
+        self,
+        metrics_by_language: dict,
+        language_stats: dict,
+        total_files: int,
+        total_dirs: int,
+        largest_line_files: dict = None,
+    ):
         """Initialize reporter with metrics.
-        
+
         Args:
             metrics_by_language: Dictionary containing metrics per language
             language_stats: Dictionary containing language-specific statistics
@@ -19,7 +26,7 @@ class BaseReporter(ABC):
         self.total_files = total_files
         self.total_dirs = total_dirs
         self.largest_line_files = largest_line_files or {}
-        
+
         # Calculate totals
         self.total_lines = 0
         self.total_code_lines = 0
@@ -31,9 +38,9 @@ class BaseReporter(ABC):
         self.total_classes = 0
         self.total_todos = 0
         self.total_imports = 0
-        
+
         self._calculate_totals()
-    
+
     def _calculate_totals(self):
         """Calculate total metrics from language-specific metrics."""
         for metrics in self.metrics_by_language.values():
@@ -47,12 +54,12 @@ class BaseReporter(ABC):
             self.total_classes += metrics.classes
             self.total_todos += metrics.todos
             self.total_imports += metrics.imports
-    
+
     @abstractmethod
     def generate_report(self, output_path: str = None):
         """Generate the report.
-        
+
         Args:
             output_path: Optional path to save the report to
         """
-        pass 
+        pass

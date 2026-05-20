@@ -1,0 +1,30 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: mettle-file-size
+        name: mettle file-size check (warning only until 0.99)
+        entry: >
+          bash -c 'python -m mettle check . --fail-on file-lines-over=500
+          || echo "WARN: file-size violations exist; will be fixed in 0.99."'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

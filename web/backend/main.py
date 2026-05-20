@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from .database.connection import run_migrations
-from .api import routes_analysis, routes_projects, routes_tags, routes_export, routes_git
+from .api import routes_analysis, routes_export, routes_git, routes_projects, routes_tags
 from .config import CORS_ORIGINS
+from .database.connection import run_migrations
 
 # Get frontend dist path
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"

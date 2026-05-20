@@ -12,6 +12,7 @@ file stays small and the surface is testable. Argparse-based handlers are
 wrapped with `click.pass_context` boundaries; the implementations consume
 their own `argparse.Namespace` shaped objects via `_ns_from_kwargs()`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,7 +48,9 @@ def cli() -> None:
 @click.option("--no-pdf", is_flag=True, help="Disable PDF report generation.")
 @click.option("--no-html", is_flag=True, help="Disable HTML report generation.")
 @click.option("--debug", is_flag=True, help="Enable debug logging.")
-@click.option("--max-lines", type=int, default=0, help="Skip files larger than N lines (0 = no limit).")
+@click.option(
+    "--max-lines", type=int, default=0, help="Skip files larger than N lines (0 = no limit)."
+)
 @click.option("--exclude-types", multiple=True, help="Exclude file types (repeatable).")
 @click.option("--exclude-dirs", multiple=True, help="Exclude directories (repeatable).")
 @click.option("--compare-to-last", is_flag=True, help="Diff against the most recent prior run.")
@@ -129,6 +132,7 @@ def batch(
 def watch(directory: str, watch_debounce: int) -> None:
     """Watch a directory and re-run analysis on file changes."""
     from rich.console import Console
+
     from .watch import run_watch
 
     ns = _ns_from_kwargs(

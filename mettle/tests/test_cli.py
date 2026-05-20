@@ -1,4 +1,5 @@
 """Smoke tests for the Click CLI surface."""
+
 import subprocess
 import sys
 

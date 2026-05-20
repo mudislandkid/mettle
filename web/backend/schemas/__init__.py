@@ -7,8 +7,8 @@ from .analysis import (
     AnalysisStatus,
     ProjectResponse,
 )
-from .tags import TagCreate, TagUpdate, TagResponse
 from .common import PathValidation, RecentPathResponse
+from .tags import TagCreate, TagResponse, TagUpdate
 
 __all__ = [
     "AnalysisCreate",

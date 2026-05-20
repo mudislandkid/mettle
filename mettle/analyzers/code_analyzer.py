@@ -13,25 +13,22 @@ The module is designed to be extensible with new language analyzers and
 configurable through the config.yaml file.
 """
 
-import os
-import json
-from typing import Dict, Set
 from rich.console import Console
 
-from ..metrics.file_metrics import FileMetrics
 from .directory_analyzer import DirectoryAnalyzer
+
 
 class CodeAnalyzer:
     """
     Main class for analyzing code in a directory structure.
-    
+
     This class is responsible for:
     - Walking through directories and identifying files to analyze
     - Filtering out excluded files and directories
     - Delegating language-specific analysis to appropriate analyzers
     - Aggregating metrics across files and languages
     - Tracking statistics like largest files by language
-    
+
     Attributes:
         debug (bool): Whether to enable debug logging
         max_lines (int): Maximum number of lines for a file to be analyzed
@@ -41,7 +38,7 @@ class CodeAnalyzer:
         files_by_language (dict): Files analyzed by language
         largest_line_files (dict): Largest file by line count for each language
     """
-    
+
     def __init__(self, debug=False, max_lines=0, exclude_types=None, exclude_dirs=None):
         self.console = Console()
         self.debug = debug
@@ -57,4 +54,4 @@ class CodeAnalyzer:
 
     def save_metrics(self, output_path: str):
         # Forward the last analyzed directory so diff-mode can match runs.
-        self.directory_analyzer.save_metrics(output_path, source_directory=self._last_directory) 
+        self.directory_analyzer.save_metrics(output_path, source_directory=self._last_directory)

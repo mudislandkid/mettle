@@ -1,13 +1,14 @@
 """Pydantic schemas for analysis-related models."""
 
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel
 
 
 class AnalysisFilters(BaseModel):
     """Filters for project analysis."""
-    github_user: Optional[str] = None
+
+    github_user: str | None = None
     skip_public_sdks: bool = True
     max_files: int = 0
     include_internal: bool = False
@@ -15,22 +16,25 @@ class AnalysisFilters(BaseModel):
 
 class AnalysisCreate(BaseModel):
     """Request to start a new analysis."""
+
     directory_path: str
-    filters: Optional[AnalysisFilters] = None
+    filters: AnalysisFilters | None = None
 
 
 class AnalysisStatus(BaseModel):
     """Status update for an analysis."""
+
     status: str  # pending, running, completed, failed
     current: int = 0
     total: int = 0
     project_name: str = ""
     message: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class FlagResponse(BaseModel):
     """Flag information for a project."""
+
     flag_type: str
     created_at: datetime
 
@@ -40,6 +44,7 @@ class FlagResponse(BaseModel):
 
 class TagResponse(BaseModel):
     """Tag information."""
+
     id: int
     name: str
     color: str
@@ -50,6 +55,7 @@ class TagResponse(BaseModel):
 
 class ProjectResponse(BaseModel):
     """Response model for a project."""
+
     id: int
     analysis_id: int
     name: str
@@ -66,15 +72,15 @@ class ProjectResponse(BaseModel):
     classes: int
     todos: int
     imports: int
-    languages: Optional[list[str]] = None
+    languages: list[str] | None = None
     avg_lines_per_file: float
     code_percentage: float = 0
     test_files: int = 0
     test_total_lines: int = 0
     test_code_lines: int = 0
     test_percentage: float = 0
-    repo_url: Optional[str] = None
-    last_commit_at: Optional[datetime] = None
+    repo_url: str | None = None
+    last_commit_at: datetime | None = None
     health_score: float = 0
     todo_items: list[dict] = []
     dependencies: list[dict] = []
@@ -95,6 +101,7 @@ class ProjectResponse(BaseModel):
 
 class ProjectNoteUpdate(BaseModel):
     """Body for PUT /projects/{id}/notes."""
+
     notes: str
 
 
@@ -113,6 +120,7 @@ class HealthResponse(BaseModel):
 
 class ProjectHighlight(BaseModel):
     """Compact row used by the dashboard top-N panels."""
+
     id: int
     analysis_id: int
     name: str
@@ -120,12 +128,13 @@ class ProjectHighlight(BaseModel):
     total_lines: int
     total_files: int
     todos: int
-    last_commit_at: Optional[datetime] = None
+    last_commit_at: datetime | None = None
     health_score: float = 0
 
 
 class ProjectHighlightsResponse(BaseModel):
     """Aggregates across all completed analyses, latest snapshot per path."""
+
     biggest: list[ProjectHighlight]
     stalest: list[ProjectHighlight]
     todo_heavy: list[ProjectHighlight]
@@ -134,6 +143,7 @@ class ProjectHighlightsResponse(BaseModel):
 
 class DependencyUsage(BaseModel):
     """One row in the cross-project dependency view."""
+
     name: str
     manager: str
     project_count: int
@@ -142,12 +152,14 @@ class DependencyUsage(BaseModel):
 
 class DependencyUsageResponse(BaseModel):
     """Cross-project dependency aggregation (latest analysis per project)."""
+
     by_manager: dict[str, list[DependencyUsage]]
     total_unique: int
 
 
 class ProjectCompareEntry(BaseModel):
     """One project's snapshot in a comparison response."""
+
     id: int
     name: str
     path: str
@@ -166,17 +178,19 @@ class ProjectCompareEntry(BaseModel):
     test_total_lines: int
     avg_lines_per_file: float
     languages: list[str]
-    last_commit_at: Optional[datetime] = None
+    last_commit_at: datetime | None = None
     health_score: float = 0
 
 
 class ProjectCompareResponse(BaseModel):
     """Side-by-side comparison of N projects."""
+
     projects: list[ProjectCompareEntry]
 
 
 class ProjectMetricsSnapshot(BaseModel):
     """The single-project metrics that participate in diff mode."""
+
     analysis_id: int
     project_id: int
     analyzed_at: datetime
@@ -192,21 +206,23 @@ class ProjectMetricsSnapshot(BaseModel):
     test_files: int
     test_total_lines: int
     test_code_lines: int
-    languages: Optional[list[str]] = None
+    languages: list[str] | None = None
     health_score: float = 0
 
 
 class ProjectDiffEntry(BaseModel):
     """One row in the diff table: a metric and its before/after/delta."""
+
     metric: str
     before: float
     after: float
     delta: float
-    delta_pct: Optional[float] = None  # None when "before" was 0
+    delta_pct: float | None = None  # None when "before" was 0
 
 
 class ProjectDiffResponse(BaseModel):
     """Diff between two analyses of the same project path."""
+
     project_path: str
     before: ProjectMetricsSnapshot
     after: ProjectMetricsSnapshot
@@ -218,6 +234,7 @@ class ProjectDiffResponse(BaseModel):
 
 class AnalysisResponse(BaseModel):
     """Response model for an analysis."""
+
     id: int
     directory_path: str
     analyzed_at: datetime
@@ -228,8 +245,8 @@ class AnalysisResponse(BaseModel):
     total_code_lines: int
     total_functions: int
     total_classes: int
-    filters_applied: Optional[dict] = None
-    error_message: Optional[str] = None
+    filters_applied: dict | None = None
+    error_message: str | None = None
     projects: list[ProjectResponse] = []
 
     class Config:
@@ -238,6 +255,7 @@ class AnalysisResponse(BaseModel):
 
 class AnalysisListResponse(BaseModel):
     """Response model for listing analyses."""
+
     id: int
     directory_path: str
     analyzed_at: datetime

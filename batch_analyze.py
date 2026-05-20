@@ -14,10 +14,8 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from typing import Optional
-
 
 # Sandboxed environment for any git subprocess we shell out to, so a hostile
 # `.git/config` inside a scanned project can't trigger code execution.
@@ -32,32 +30,52 @@ _SAFE_GIT_ENV = {
 
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 
 from mettle.analyzers.code_analyzer import CodeAnalyzer
 from mettle.analyzers.dependency_detection import detect_dependencies
 
-
 # Known large public SDKs/frameworks that are typically vendored, not user projects
 KNOWN_PUBLIC_SDKS = {
-    'esp-idf', 'esp-adf', 'esp-mdf', 'esp-matter',  # Espressif
-    'aws-sdk', 'azure-sdk', 'google-cloud-sdk',      # Cloud SDKs
-    'tensorflow', 'pytorch', 'keras',                 # ML frameworks
-    'react', 'angular', 'vue',                        # JS frameworks (if cloned)
-    'linux', 'freebsd', 'zephyr',                     # OS kernels
-    'llvm', 'gcc', 'clang',                           # Compilers
-    'opencv', 'ffmpeg',                               # Media libraries
-    'boost', 'abseil-cpp', 'folly',                   # C++ libraries
-    'node', 'deno', 'bun',                            # Runtimes
-    'micropython', 'circuitpython',                   # Embedded Python
-    'arduino', 'platformio',                          # Embedded platforms
-    'ros', 'ros2',                                    # Robotics
+    "esp-idf",
+    "esp-adf",
+    "esp-mdf",
+    "esp-matter",  # Espressif
+    "aws-sdk",
+    "azure-sdk",
+    "google-cloud-sdk",  # Cloud SDKs
+    "tensorflow",
+    "pytorch",
+    "keras",  # ML frameworks
+    "react",
+    "angular",
+    "vue",  # JS frameworks (if cloned)
+    "linux",
+    "freebsd",
+    "zephyr",  # OS kernels
+    "llvm",
+    "gcc",
+    "clang",  # Compilers
+    "opencv",
+    "ffmpeg",  # Media libraries
+    "boost",
+    "abseil-cpp",
+    "folly",  # C++ libraries
+    "node",
+    "deno",
+    "bun",  # Runtimes
+    "micropython",
+    "circuitpython",  # Embedded Python
+    "arduino",
+    "platformio",  # Embedded platforms
+    "ros",
+    "ros2",  # Robotics
 }
 
 
 @dataclass
 class ProjectSummary:
     """Summary metrics for a single project."""
+
     name: str
     total_dirs: int
     total_files: int
@@ -76,8 +94,8 @@ class ProjectSummary:
     test_files: int = 0
     test_total_lines: int = 0
     test_code_lines: int = 0
-    repo_url: Optional[str] = None
-    last_commit_at: Optional[str] = None  # ISO-8601 with TZ, or None
+    repo_url: str | None = None
+    last_commit_at: str | None = None  # ISO-8601 with TZ, or None
     todo_items: list = None  # filled in __post_init__
     dependencies: list = None  # filled in __post_init__
     complex_functions: list = None  # filled in __post_init__
@@ -124,50 +142,137 @@ class ProjectSummary:
 # Common internal directory names that are usually NOT standalone projects
 INTERNAL_FOLDER_NAMES = {
     # Source directories
-    'src', 'source', 'lib', 'libs', 'core', 'app', 'apps',
+    "src",
+    "source",
+    "lib",
+    "libs",
+    "core",
+    "app",
+    "apps",
     # Frontend/Backend splits
-    'frontend', 'backend', 'client', 'server', 'web', 'api',
+    "frontend",
+    "backend",
+    "client",
+    "server",
+    "web",
+    "api",
     # Common framework folders
-    'src-tauri', 'electron', 'mobile', 'desktop',
+    "src-tauri",
+    "electron",
+    "mobile",
+    "desktop",
     # Test/docs folders
-    'tests', 'test', 'spec', 'specs', '__tests__', '__mocks__',
-    'docs', 'documentation', 'doc',
+    "tests",
+    "test",
+    "spec",
+    "specs",
+    "__tests__",
+    "__mocks__",
+    "docs",
+    "documentation",
+    "doc",
     # Config/tooling folders
-    'config', 'configs', 'scripts', 'tools', 'utils', 'utilities',
-    'helpers', 'shared', 'common', 'types', 'interfaces',
+    "config",
+    "configs",
+    "scripts",
+    "tools",
+    "utils",
+    "utilities",
+    "helpers",
+    "shared",
+    "common",
+    "types",
+    "interfaces",
     # Database/migration folders
-    'prisma', 'migrations', 'alembic', 'supabase', 'database', 'db',
+    "prisma",
+    "migrations",
+    "alembic",
+    "supabase",
+    "database",
+    "db",
     # Build output / generated
-    'htmlcov', 'coverage', 'reports', 'logs', 'tmp', 'temp',
+    "htmlcov",
+    "coverage",
+    "reports",
+    "logs",
+    "tmp",
+    "temp",
     # Package managers
-    'packages', 'modules', 'components', 'hooks', 'store', 'stores',
+    "packages",
+    "modules",
+    "components",
+    "hooks",
+    "store",
+    "stores",
     # Research/data folders
-    'research_docs', 'data', 'assets', 'public', 'static',
+    "research_docs",
+    "data",
+    "assets",
+    "public",
+    "static",
     # CI/CD
-    'infrastructure', 'deploy', 'deployment', '.github',
+    "infrastructure",
+    "deploy",
+    "deployment",
+    ".github",
     # Other common internal folders
-    'legacy', 'archive', 'backup', 'examples', 'samples',
-    'fixtures', 'mocks', 'stubs', 'factories',
-    'middleware', 'services', 'controllers', 'models', 'views',
-    'routes', 'handlers', 'resolvers', 'schemas', 'validators',
-    'agents', 'workers', 'jobs', 'tasks', 'connectors', 'adapters',
-    'plugins', 'extensions', 'addons', 'providers',
-    'frontend-app', 'desktop-app', 'analyzer-worker', 'app-tests',
-    'python-services', 'transcription-service', 'file-watcher',
-    'test_scripts', 'proxy', 'knowledge', 'agent',
+    "legacy",
+    "archive",
+    "backup",
+    "examples",
+    "samples",
+    "fixtures",
+    "mocks",
+    "stubs",
+    "factories",
+    "middleware",
+    "services",
+    "controllers",
+    "models",
+    "views",
+    "routes",
+    "handlers",
+    "resolvers",
+    "schemas",
+    "validators",
+    "agents",
+    "workers",
+    "jobs",
+    "tasks",
+    "connectors",
+    "adapters",
+    "plugins",
+    "extensions",
+    "addons",
+    "providers",
+    "frontend-app",
+    "desktop-app",
+    "analyzer-worker",
+    "app-tests",
+    "python-services",
+    "transcription-service",
+    "file-watcher",
+    "test_scripts",
+    "proxy",
+    "knowledge",
+    "agent",
     # Vendored dependencies
-    'esp-idf', 'esp-adf', 'managed_components',
+    "esp-idf",
+    "esp-adf",
+    "managed_components",
 }
 
 
-def _git_remote_url(path: Path) -> Optional[str]:
+def _git_remote_url(path: Path) -> str | None:
     """Return the raw `origin` remote URL for a directory, or None."""
-    if not (path / '.git').exists():
+    if not (path / ".git").exists():
         return None
     try:
         result = subprocess.run(
-            ['git', '-C', str(path), '--no-pager', 'remote', 'get-url', 'origin'],
-            capture_output=True, text=True, timeout=5,
+            ["git", "-C", str(path), "--no-pager", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=5,
             env=_SAFE_GIT_ENV,
         )
         if result.returncode != 0:
@@ -178,14 +283,16 @@ def _git_remote_url(path: Path) -> Optional[str]:
         return None
 
 
-def _git_last_commit_iso(path: Path) -> Optional[str]:
+def _git_last_commit_iso(path: Path) -> str | None:
     """Return the most recent commit's author date in ISO-8601 form, or None."""
-    if not (path / '.git').exists():
+    if not (path / ".git").exists():
         return None
     try:
         result = subprocess.run(
-            ['git', '-C', str(path), '--no-pager', 'log', '-1', '--format=%aI'],
-            capture_output=True, text=True, timeout=5,
+            ["git", "-C", str(path), "--no-pager", "log", "-1", "--format=%aI"],
+            capture_output=True,
+            text=True,
+            timeout=5,
             env=_SAFE_GIT_ENV,
         )
         if result.returncode != 0:
@@ -204,7 +311,7 @@ def get_git_metadata(path: Path) -> dict:
     }
 
 
-def get_git_remote_owner(path: Path) -> Optional[str]:
+def get_git_remote_owner(path: Path) -> str | None:
     """Get the GitHub/GitLab username from the git remote URL."""
     url = _git_remote_url(path)
     if url is None:
@@ -213,8 +320,8 @@ def get_git_remote_owner(path: Path) -> Optional[str]:
     # SSH: git@github.com:username/repo.git
     # HTTPS: https://github.com/username/repo.git
     patterns = [
-        r'git@(?:github|gitlab)\.com:([^/]+)/',
-        r'https?://(?:github|gitlab)\.com/([^/]+)/',
+        r"git@(?:github|gitlab)\.com:([^/]+)/",
+        r"https?://(?:github|gitlab)\.com/([^/]+)/",
     ]
     for pattern in patterns:
         match = re.search(pattern, url)
@@ -243,14 +350,27 @@ def is_project_directory(path: Path, include_internal: bool = False) -> bool:
         return False
 
     # Skip hidden directories and common non-project folders
-    if path.name.startswith('.'):
+    if path.name.startswith("."):
         return False
 
     # Directories to always skip - these are never standalone projects
     skip_names = {
-        'node_modules', '__pycache__', 'venv', 'env', '.venv',
-        'dist', 'build', 'target', '.git', '.svn', 'vendor',
-        'coverage', '.next', '.nuxt', 'out', '.cache'
+        "node_modules",
+        "__pycache__",
+        "venv",
+        "env",
+        ".venv",
+        "dist",
+        "build",
+        "target",
+        ".git",
+        ".svn",
+        "vendor",
+        "coverage",
+        ".next",
+        ".nuxt",
+        "out",
+        ".cache",
     }
 
     if path.name.lower() in skip_names:
@@ -262,9 +382,19 @@ def is_project_directory(path: Path, include_internal: bool = False) -> bool:
 
     # Check for common project indicators
     project_markers = [
-        'package.json', 'pyproject.toml', 'setup.py', 'Cargo.toml',
-        'go.mod', 'pom.xml', 'build.gradle', 'Makefile', 'CMakeLists.txt',
-        'requirements.txt', 'Gemfile', 'composer.json', '.git'
+        "package.json",
+        "pyproject.toml",
+        "setup.py",
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "Makefile",
+        "CMakeLists.txt",
+        "requirements.txt",
+        "Gemfile",
+        "composer.json",
+        ".git",
     ]
 
     for marker in project_markers:
@@ -272,7 +402,20 @@ def is_project_directory(path: Path, include_internal: bool = False) -> bool:
             return True
 
     # Check if directory contains code files
-    code_extensions = {'.py', '.js', '.ts', '.jsx', '.tsx', '.go', '.rs', '.java', '.cpp', '.c', '.rb', '.php'}
+    code_extensions = {
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".cpp",
+        ".c",
+        ".rb",
+        ".php",
+    }
     for item in path.iterdir():
         if item.is_file() and item.suffix.lower() in code_extensions:
             return True
@@ -280,7 +423,7 @@ def is_project_directory(path: Path, include_internal: bool = False) -> bool:
     return False
 
 
-def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> Optional[ProjectSummary]:
+def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> ProjectSummary | None:
     """Analyze a single project and return summary metrics."""
     try:
         metrics = analyzer.analyze_directory(str(project_path))
@@ -305,7 +448,7 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> Optional[Proj
         type_aliases = 0
         enums = 0
 
-        for lang, file_metrics in metrics['metrics_by_language'].items():
+        for lang, file_metrics in metrics["metrics_by_language"].items():
             languages.append(lang)
             total_lines += file_metrics.total_lines
             code_lines += file_metrics.code_lines
@@ -324,7 +467,7 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> Optional[Proj
             type_aliases += file_metrics.type_aliases
             enums += file_metrics.enums
 
-        total_files = metrics['total_files']
+        total_files = metrics["total_files"]
         avg_lines = total_lines / total_files if total_files > 0 else 0
 
         git_meta = get_git_metadata(project_path)
@@ -332,7 +475,7 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> Optional[Proj
 
         return ProjectSummary(
             name=project_path.name,
-            total_dirs=metrics['total_dirs'],
+            total_dirs=metrics["total_dirs"],
             total_files=total_files,
             total_lines=total_lines,
             code_lines=code_lines,
@@ -346,14 +489,14 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> Optional[Proj
             imports=imports,
             languages=sorted(languages),
             avg_lines_per_file=round(avg_lines, 1),
-            test_files=metrics.get('test_files', 0),
-            test_total_lines=metrics.get('test_total_lines', 0),
-            test_code_lines=metrics.get('test_code_lines', 0),
-            repo_url=git_meta.get('repo_url'),
-            last_commit_at=git_meta.get('last_commit_at'),
-            todo_items=metrics.get('todo_items', []),
+            test_files=metrics.get("test_files", 0),
+            test_total_lines=metrics.get("test_total_lines", 0),
+            test_code_lines=metrics.get("test_code_lines", 0),
+            repo_url=git_meta.get("repo_url"),
+            last_commit_at=git_meta.get("last_commit_at"),
+            todo_items=metrics.get("todo_items", []),
             dependencies=deps,
-            complex_functions=metrics.get('complex_functions', []),
+            complex_functions=metrics.get("complex_functions", []),
             jsx_components=jsx_components,
             react_hooks=react_hooks,
             async_functions=async_functions,
@@ -375,31 +518,30 @@ def format_number(n: int) -> str:
 # Fields that get summed across projects for the totals tables. Adding a new
 # total here automatically wires it into every report generator below.
 _TOTAL_FIELDS = (
-    'total_files',
-    'total_lines',
-    'code_lines',
-    'comment_lines',
-    'blank_lines',
-    'functions',
-    'classes',
-    'todos',
-    'imports',
-    'test_files',
-    'test_total_lines',
-    'test_code_lines',
+    "total_files",
+    "total_lines",
+    "code_lines",
+    "comment_lines",
+    "blank_lines",
+    "functions",
+    "classes",
+    "todos",
+    "imports",
+    "test_files",
+    "test_total_lines",
+    "test_code_lines",
 )
 
 
 def compute_totals(summaries: list[ProjectSummary]) -> dict[str, int]:
     """Sum the headline metrics across every project (one pass, one place)."""
     totals = {field: 0 for field in _TOTAL_FIELDS}
-    totals['total_projects'] = len(summaries)
+    totals["total_projects"] = len(summaries)
     for s in summaries:
         for field in _TOTAL_FIELDS:
             totals[field] += getattr(s, field)
-    totals['avg_lines_per_project'] = (
-        totals['total_lines'] // totals['total_projects']
-        if totals['total_projects'] > 0 else 0
+    totals["avg_lines_per_project"] = (
+        totals["total_lines"] // totals["total_projects"] if totals["total_projects"] > 0 else 0
     )
     # Tie-break sort by name so report ordering is deterministic between runs
     # for projects with identical line counts. Mutates in place — callers expect
@@ -439,7 +581,7 @@ def generate_console_report(summaries: list[ProjectSummary], console: Console):
             format_number(s.functions),
             format_number(s.classes),
             str(s.avg_lines_per_file),
-            ", ".join(s.languages[:5]) + ("..." if len(s.languages) > 5 else "")
+            ", ".join(s.languages[:5]) + ("..." if len(s.languages) > 5 else ""),
         )
 
     console.print()
@@ -448,15 +590,15 @@ def generate_console_report(summaries: list[ProjectSummary], console: Console):
     totals_table = Table(title="Overall Totals", show_header=True, header_style="bold green")
     totals_table.add_column("Metric", style="bold")
     totals_table.add_column("Value", justify="right")
-    totals_table.add_row("Total Projects", format_number(totals['total_projects']))
-    totals_table.add_row("Total Files", format_number(totals['total_files']))
-    totals_table.add_row("Total Lines", format_number(totals['total_lines']))
-    totals_table.add_row("Total Code Lines", format_number(totals['code_lines']))
-    totals_table.add_row("Total Test Files", format_number(totals['test_files']))
-    totals_table.add_row("Total Test Lines", format_number(totals['test_total_lines']))
-    totals_table.add_row("Total Functions", format_number(totals['functions']))
-    totals_table.add_row("Total Classes", format_number(totals['classes']))
-    totals_table.add_row("Avg Lines/Project", format_number(totals['avg_lines_per_project']))
+    totals_table.add_row("Total Projects", format_number(totals["total_projects"]))
+    totals_table.add_row("Total Files", format_number(totals["total_files"]))
+    totals_table.add_row("Total Lines", format_number(totals["total_lines"]))
+    totals_table.add_row("Total Code Lines", format_number(totals["code_lines"]))
+    totals_table.add_row("Total Test Files", format_number(totals["test_files"]))
+    totals_table.add_row("Total Test Lines", format_number(totals["test_total_lines"]))
+    totals_table.add_row("Total Functions", format_number(totals["functions"]))
+    totals_table.add_row("Total Classes", format_number(totals["classes"]))
+    totals_table.add_row("Avg Lines/Project", format_number(totals["avg_lines_per_project"]))
 
     console.print()
     console.print(totals_table)
@@ -484,24 +626,26 @@ def generate_markdown_report(summaries: list[ProjectSummary], output_path: Path)
             f"{s.code_percentage:.1f}% | {s.test_percentage:.1f}% | {s.functions:,} | {s.classes:,} | {s.avg_lines_per_file} |"
         )
 
-    lines.extend([
-        "",
-        "## Overall Totals",
-        "",
-        "| Metric | Value |",
-        "|--------|------:|",
-        f"| Total Projects | {totals['total_projects']:,} |",
-        f"| Total Files | {totals['total_files']:,} |",
-        f"| Total Lines | {totals['total_lines']:,} |",
-        f"| Total Code Lines | {totals['code_lines']:,} |",
-        f"| Total Test Files | {totals['test_files']:,} |",
-        f"| Total Test Lines | {totals['test_total_lines']:,} |",
-        f"| Total Functions | {totals['functions']:,} |",
-        f"| Total Classes | {totals['classes']:,} |",
-        "",
-        "## Languages by Project",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Overall Totals",
+            "",
+            "| Metric | Value |",
+            "|--------|------:|",
+            f"| Total Projects | {totals['total_projects']:,} |",
+            f"| Total Files | {totals['total_files']:,} |",
+            f"| Total Lines | {totals['total_lines']:,} |",
+            f"| Total Code Lines | {totals['code_lines']:,} |",
+            f"| Total Test Files | {totals['test_files']:,} |",
+            f"| Total Test Lines | {totals['test_total_lines']:,} |",
+            f"| Total Functions | {totals['functions']:,} |",
+            f"| Total Classes | {totals['classes']:,} |",
+            "",
+            "## Languages by Project",
+            "",
+        ]
+    )
 
     for s in summaries:
         lines.append(f"- **{s.name}**: {', '.join(s.languages)}")
@@ -517,19 +661,19 @@ def generate_json_report(summaries: list[ProjectSummary], output_path: Path):
     data = {
         "projects": [asdict(s) for s in summaries],
         "totals": {
-            "total_projects": totals['total_projects'],
-            "total_files": totals['total_files'],
-            "total_lines": totals['total_lines'],
-            "total_code_lines": totals['code_lines'],
-            "total_comment_lines": totals['comment_lines'],
-            "total_blank_lines": totals['blank_lines'],
-            "total_functions": totals['functions'],
-            "total_classes": totals['classes'],
-            "total_todos": totals['todos'],
-            "total_imports": totals['imports'],
-            "total_test_files": totals['test_files'],
-            "total_test_lines": totals['test_total_lines'],
-            "total_test_code_lines": totals['test_code_lines'],
+            "total_projects": totals["total_projects"],
+            "total_files": totals["total_files"],
+            "total_lines": totals["total_lines"],
+            "total_code_lines": totals["code_lines"],
+            "total_comment_lines": totals["comment_lines"],
+            "total_blank_lines": totals["blank_lines"],
+            "total_functions": totals["functions"],
+            "total_classes": totals["classes"],
+            "total_todos": totals["todos"],
+            "total_imports": totals["imports"],
+            "total_test_files": totals["test_files"],
+            "total_test_lines": totals["test_total_lines"],
+            "total_test_code_lines": totals["test_code_lines"],
         },
     }
 
@@ -548,51 +692,44 @@ def main(args: argparse.Namespace | None = None) -> int:
             description="Analyze all project folders within a directory"
         )
         parser.add_argument(
-            "directory",
-            type=str,
-            help="Parent directory containing project folders to analyze"
+            "directory", type=str, help="Parent directory containing project folders to analyze"
         )
+        parser.add_argument("--output", "-o", type=str, help="Output markdown report file path")
+        parser.add_argument("--json", "-j", type=str, help="Output JSON report file path")
         parser.add_argument(
-            "--output", "-o",
-            type=str,
-            help="Output markdown report file path"
-        )
-        parser.add_argument(
-            "--json", "-j",
-            type=str,
-            help="Output JSON report file path"
-        )
-        parser.add_argument(
-            "--all", "-a",
+            "--all",
+            "-a",
             action="store_true",
-            help="Analyze all subdirectories (not just detected projects)"
+            help="Analyze all subdirectories (not just detected projects)",
         )
         parser.add_argument(
-            "--depth", "-d",
+            "--depth",
+            "-d",
             type=int,
             default=1,
-            help="Directory depth to search for projects (default: 1, recommended to keep at 1)"
+            help="Directory depth to search for projects (default: 1, recommended to keep at 1)",
         )
         parser.add_argument(
             "--include-internal",
             action="store_true",
-            help="Include common internal folder names (src, lib, frontend, backend, etc.)"
+            help="Include common internal folder names (src, lib, frontend, backend, etc.)",
         )
         parser.add_argument(
-            "--github-user", "-u",
+            "--github-user",
+            "-u",
             type=str,
-            help="Only include projects owned by this GitHub/GitLab username"
+            help="Only include projects owned by this GitHub/GitLab username",
         )
         parser.add_argument(
             "--skip-public-sdks",
             action="store_true",
-            help="Skip known public SDKs (esp-idf, tensorflow, etc.)"
+            help="Skip known public SDKs (esp-idf, tensorflow, etc.)",
         )
         parser.add_argument(
             "--max-files",
             type=int,
             default=0,
-            help="Skip projects with more than this many files (0 = no limit, helps filter vendored SDKs)"
+            help="Skip projects with more than this many files (0 = no limit, helps filter vendored SDKs)",
         )
         args = parser.parse_args()
 
@@ -611,7 +748,9 @@ def main(args: argparse.Namespace | None = None) -> int:
     console.print(f"\n[bold]Scanning for projects in:[/bold] {parent_dir}")
 
     if args.depth > 1:
-        console.print(f"[yellow]Warning: Using depth={args.depth} may pick up internal folders. Consider using depth=1.[/yellow]")
+        console.print(
+            f"[yellow]Warning: Using depth={args.depth} may pick up internal folders. Consider using depth=1.[/yellow]"
+        )
 
     if args.depth == 1:
         subdirs = [d for d in parent_dir.iterdir() if d.is_dir() and not d.is_symlink()]
@@ -633,7 +772,7 @@ def main(args: argparse.Namespace | None = None) -> int:
                 subdirs.append(d)
 
     if args.all:
-        project_dirs = [d for d in subdirs if not d.name.startswith('.')]
+        project_dirs = [d for d in subdirs if not d.name.startswith(".")]
     else:
         project_dirs = [d for d in subdirs if is_project_directory(d, args.include_internal)]
 
@@ -652,16 +791,20 @@ def main(args: argparse.Namespace | None = None) -> int:
         # Parallelize the per-project `git remote get-url` calls; the old
         # sequential version was up to ~5s × N projects.
         from concurrent.futures import ThreadPoolExecutor
+
         target_user = args.github_user.lower()
         with ThreadPoolExecutor(max_workers=min(16, max(4, len(project_dirs)))) as pool:
             owners = list(pool.map(get_git_remote_owner, project_dirs))
         project_dirs = [
-            d for d, owner in zip(project_dirs, owners)
+            d
+            for d, owner in zip(project_dirs, owners, strict=False)
             if owner is None or owner.lower() == target_user
         ]
         skipped = before_count - len(project_dirs)
         if skipped > 0:
-            console.print(f"[dim]Skipped {skipped} project(s) not owned by {args.github_user}[/dim]")
+            console.print(
+                f"[dim]Skipped {skipped} project(s) not owned by {args.github_user}[/dim]"
+            )
 
     if not project_dirs:
         console.print("[yellow]No project directories found.[/yellow]")
@@ -687,7 +830,9 @@ def main(args: argparse.Namespace | None = None) -> int:
                 summaries.append(summary)
 
     if skipped_large > 0:
-        console.print(f"[dim]Skipped {skipped_large} project(s) exceeding {args.max_files:,} files[/dim]")
+        console.print(
+            f"[dim]Skipped {skipped_large} project(s) exceeding {args.max_files:,} files[/dim]"
+        )
 
     if not summaries:
         console.print("[yellow]No projects with analyzable files found.[/yellow]")

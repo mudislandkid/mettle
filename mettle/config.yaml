@@ -82,7 +82,7 @@ exclude:
     # Generated / incremental compilation
     - incremental
     - .fingerprint
-    
+
   # File patterns to ignore (glob patterns)
   files:
     # Compiled bytecode / objects
@@ -161,7 +161,7 @@ reports:
       show_line_counts: true
       show_character_counts: true
       show_word_counts: true
-      
+
   markdown:
     enabled: true
     include_timestamp: true
@@ -173,7 +173,7 @@ reports:
       show_line_counts: true
       show_character_counts: true
       show_word_counts: true
-      
+
   pdf:
     enabled: true
     include_charts: true
@@ -190,11 +190,11 @@ reports:
 languages:
   JavaScript:
     enabled: true
-      
+
   TypeScript:
     enabled: true
     inherit_from: JavaScript
-      
+
   Python:
     enabled: true
     metrics:
@@ -202,13 +202,13 @@ languages:
       - list_comprehensions
       - lambda_functions
       - f_strings
-      
+
   HTML:
     enabled: true
     metrics:
       - elements
       - attributes
-      
+
   CSS:
     enabled: true
     metrics:
@@ -222,4 +222,4 @@ output:
   file_naming:
     prefix: ""
     suffix: "_analysis"
-    include_timestamp: false  # If true, adds timestamp to filenames 
+    include_timestamp: false  # If true, adds timestamp to filenames

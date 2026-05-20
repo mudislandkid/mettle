@@ -1,20 +1,18 @@
 import re
 from abc import ABC
-from typing import Tuple
+
 from ..metrics.file_metrics import FileMetrics
 
 # Match TODO / FIXME / XXX / HACK as a standalone token (word-bounded, any case).
 # This avoids the `todoList` / `Todo.py` false positives the old `count('todo')`
 # would produce.
-_TODO_RE = re.compile(r'\b(?:TODO|FIXME|XXX|HACK)\b', re.IGNORECASE)
+_TODO_RE = re.compile(r"\b(?:TODO|FIXME|XXX|HACK)\b", re.IGNORECASE)
 
 # Quoted strings — used to mask string contents before scanning for comments so
 # patterns like `//` inside `"https://..."` don't get counted as comment markers.
 # Matches double, single, and backtick strings, allowing simple `\.` escapes.
 _STRING_LITERAL_RE = re.compile(
-    r'"(?:\\.|[^"\\\n])*"'
-    r"|'(?:\\.|[^'\\\n])*'"
-    r'|`(?:\\.|[^`\\])*`'
+    r'"(?:\\.|[^"\\\n])*"' r"|'(?:\\.|[^'\\\n])*'" r"|`(?:\\.|[^`\\])*`"
 )
 
 
@@ -23,16 +21,16 @@ def mask_string_literals(content: str) -> str:
 
     def _blank_out(match: re.Match) -> str:
         text = match.group()
-        return ''.join('\n' if c == '\n' else ' ' for c in text)
+        return "".join("\n" if c == "\n" else " " for c in text)
 
     return _STRING_LITERAL_RE.sub(_blank_out, content)
 
 
 def classify_lines(
     content: str,
-    line_comment_re: 're.Pattern[str] | None' = None,
-    block_comment_re: 're.Pattern[str] | None' = None,
-) -> Tuple[int, int, int]:
+    line_comment_re: "re.Pattern[str] | None" = None,
+    block_comment_re: "re.Pattern[str] | None" = None,
+) -> tuple[int, int, int]:
     """Return (blank_lines, comment_lines, code_lines) for a piece of source.
 
     A line that contains both code and a trailing comment is counted as code
@@ -45,7 +43,7 @@ def classify_lines(
     if not content:
         return 0, 0, 0
 
-    lines = content.splitlines() or ['']
+    lines = content.splitlines() or [""]
     total = len(lines)
 
     has_code = [False] * total
@@ -57,8 +55,8 @@ def classify_lines(
     # Mark block-comment regions.
     if block_comment_re is not None:
         for match in block_comment_re.finditer(masked):
-            start_line = masked.count('\n', 0, match.start())
-            end_line = masked.count('\n', 0, match.end())
+            start_line = masked.count("\n", 0, match.start())
+            end_line = masked.count("\n", 0, match.end())
             for i in range(start_line, min(end_line + 1, total)):
                 has_comment[i] = True
 
@@ -66,16 +64,16 @@ def classify_lines(
     # line-comment scan doesn't trip over them.
     if block_comment_re is not None:
         masked_no_block = block_comment_re.sub(
-            lambda m: ''.join('\n' if c == '\n' else ' ' for c in m.group()),
+            lambda m: "".join("\n" if c == "\n" else " " for c in m.group()),
             masked,
         )
     else:
         masked_no_block = masked
 
-    masked_lines = masked_no_block.splitlines() or ['']
+    masked_lines = masked_no_block.splitlines() or [""]
     # Pad/truncate to match line count from the original splitlines.
     if len(masked_lines) < total:
-        masked_lines.extend([''] * (total - len(masked_lines)))
+        masked_lines.extend([""] * (total - len(masked_lines)))
     elif len(masked_lines) > total:
         masked_lines = masked_lines[:total]
 
@@ -112,25 +110,25 @@ def classify_lines(
 
 
 class BaseAnalyzer(ABC):
-    def count_functions_and_classes(self, content: str) -> Tuple[int, int]:
+    def count_functions_and_classes(self, content: str) -> tuple[int, int]:
         """Count functions and classes in the code.
-        
+
         This base implementation returns (0, 0).
         Language-specific analyzers should override this method.
         """
         return 0, 0
-    
+
     def count_imports(self, content: str) -> int:
         """Count import statements.
-        
+
         This base implementation returns 0.
         Language-specific analyzers should override this method.
         """
         return 0
-    
+
     def analyze_content(self, content: str, file_path: str) -> FileMetrics:
         """Analyze file content and return metrics.
-        
+
         This base implementation provides basic metrics that are common across
         all languages. Language-specific analyzers should override this method
         to add their own metrics while calling super().analyze_content() first.

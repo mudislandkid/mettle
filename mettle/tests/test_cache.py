@@ -96,6 +96,7 @@ class TestFileAnalyzerCacheIntegration(unittest.TestCase):
 
     def test_second_analyze_is_a_cache_hit(self):
         from ..analyzers.file_analyzer import FileAnalyzer
+
         src = Path(self.tmpdir.name) / "demo.py"
         src.write_text("def foo():\n    return 1\n")
         analyzer = FileAnalyzer(cache=self.cache)
@@ -109,6 +110,7 @@ class TestFileAnalyzerCacheIntegration(unittest.TestCase):
 
     def test_modified_file_misses(self):
         from ..analyzers.file_analyzer import FileAnalyzer
+
         src = Path(self.tmpdir.name) / "demo.py"
         src.write_text("def foo():\n    return 1\n")
         analyzer = FileAnalyzer(cache=self.cache)

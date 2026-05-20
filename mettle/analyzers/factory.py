@@ -10,19 +10,19 @@ The factory uses a cache file (.analyzer_cache.json) to store registered analyze
 between runs, improving performance by avoiding the need to rediscover analyzers each time.
 """
 
-import os
-import json
 import importlib
 import inspect
+import json
 import logging
+import os
 from pathlib import Path
-from typing import Dict, Set, Type
+
 from .base import BaseAnalyzer
+from .c_style import CStyleAnalyzer, ObjectiveCAnalyzer, ShellAnalyzer
+from .html_css import HTMLCSSAnalyzer
 from .javascript import JavaScriptAnalyzer
 from .python import PythonAnalyzer
 from .python_ast import PythonAstAnalyzer
-from .html_css import HTMLCSSAnalyzer
-from .c_style import CStyleAnalyzer, ShellAnalyzer, ObjectiveCAnalyzer
 
 ENTRY_POINT_GROUP = "mettle.analyzers"
 _log = logging.getLogger(__name__)
@@ -31,125 +31,130 @@ _log = logging.getLogger(__name__)
 def _user_cache_path() -> Path:
     """Return a per-user cache file location that won't try to mutate the
     installed package directory."""
-    base = os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache')
-    cache_dir = Path(base) / 'mettle'
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    cache_dir = Path(base) / "mettle"
     try:
         cache_dir.mkdir(parents=True, exist_ok=True)
     except OSError:
         # Fall back to the platform's tmp dir if ~/.cache is unwritable.
         import tempfile
-        cache_dir = Path(tempfile.gettempdir()) / 'mettle'
+
+        cache_dir = Path(tempfile.gettempdir()) / "mettle"
         cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / 'analyzer_cache.json'
+    return cache_dir / "analyzer_cache.json"
+
 
 class AnalyzerFactory:
     """
     Factory class for creating and managing language-specific analyzers.
-    
+
     This class is responsible for:
     - Mapping file extensions to programming languages
     - Determining the appropriate analyzer for a given file
     - Registering new analyzers dynamically
     - Caching analyzer registrations for performance
-    
+
     The .analyzer_cache.json file is used to store registered analyzers between runs.
     This improves performance by avoiding the need to rediscover analyzers each time.
     """
+
     def __init__(self):
-        self.file_extensions: Dict[str, Set[str]] = {
-            'Python': {'.py', '.pyw', '.pyx', '.pyi'},
-            'JavaScript': {'.js', '.jsx', '.mjs', '.cjs'},
-            'TypeScript': {'.ts', '.tsx'},
-            'HTML': {'.html', '.htm', '.xhtml', '.jinja', '.jinja2', '.j2'},
-            'CSS': {'.css', '.scss', '.sass', '.less', '.postcss'},
-            'JSON': {'.json', '.jsonc', '.json5', '.geojson'},
-            'YAML': {'.yml', '.yaml'},
-            'Markdown': {'.md', '.markdown', '.mdown', '.mkd'},
-            'SQL': {'.sql', '.psql', '.plsql'},
-            'Shell': {'.sh', '.bash', '.zsh', '.fish'},
-            'Docker': {'Dockerfile', '.dockerfile', '.containerfile'},
-            'XML': {'.xml', '.xsl', '.xslt', '.wsdl', '.xlf'},
-            'Config': {'.ini', '.cfg', '.conf', '.config', '.properties', '.env', '.toml'},
-            'Ruby': {'.rb', '.erb', '.rake'},
-            'Java': {'.java', '.jsp', '.jspx'},
-            'C/C++': {'.c', '.cpp', '.cc', '.cxx', '.h', '.hpp', '.hxx', '.ino'},
-            'Go': {'.go'},
-            'Rust': {'.rs'},
-            'PHP': {'.php', '.phtml', '.php3', '.php4', '.php5'},
-            'Swift': {'.swift'},
-            'Objective-C': {'.m', '.mm'},
-            'Kotlin': {'.kt', '.kts'},
-            'GraphQL': {'.graphql', '.gql'},
-            'Protocol Buffers': {'.proto'},
-            'Vue': {'.vue'},
-            'Terraform': {'.tf', '.tfvars'},
-            'Documentation': {'.rst', '.rdoc', '.adoc', '.asciidoc', '.tex'},
-            'Data': {'.csv', '.tsv'},
-            'Mako': {'.mako'},
+        self.file_extensions: dict[str, set[str]] = {
+            "Python": {".py", ".pyw", ".pyx", ".pyi"},
+            "JavaScript": {".js", ".jsx", ".mjs", ".cjs"},
+            "TypeScript": {".ts", ".tsx"},
+            "HTML": {".html", ".htm", ".xhtml", ".jinja", ".jinja2", ".j2"},
+            "CSS": {".css", ".scss", ".sass", ".less", ".postcss"},
+            "JSON": {".json", ".jsonc", ".json5", ".geojson"},
+            "YAML": {".yml", ".yaml"},
+            "Markdown": {".md", ".markdown", ".mdown", ".mkd"},
+            "SQL": {".sql", ".psql", ".plsql"},
+            "Shell": {".sh", ".bash", ".zsh", ".fish"},
+            "Docker": {"Dockerfile", ".dockerfile", ".containerfile"},
+            "XML": {".xml", ".xsl", ".xslt", ".wsdl", ".xlf"},
+            "Config": {".ini", ".cfg", ".conf", ".config", ".properties", ".env", ".toml"},
+            "Ruby": {".rb", ".erb", ".rake"},
+            "Java": {".java", ".jsp", ".jspx"},
+            "C/C++": {".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hxx", ".ino"},
+            "Go": {".go"},
+            "Rust": {".rs"},
+            "PHP": {".php", ".phtml", ".php3", ".php4", ".php5"},
+            "Swift": {".swift"},
+            "Objective-C": {".m", ".mm"},
+            "Kotlin": {".kt", ".kts"},
+            "GraphQL": {".graphql", ".gql"},
+            "Protocol Buffers": {".proto"},
+            "Vue": {".vue"},
+            "Terraform": {".tf", ".tfvars"},
+            "Documentation": {".rst", ".rdoc", ".adoc", ".asciidoc", ".tex"},
+            "Data": {".csv", ".tsv"},
+            "Mako": {".mako"},
         }
-        
-        self.analyzers: Dict[str, Type[BaseAnalyzer]] = {
-            'Python': PythonAstAnalyzer,
-            'JavaScript': JavaScriptAnalyzer,
-            'TypeScript': JavaScriptAnalyzer,
-            'HTML': HTMLCSSAnalyzer,
-            'CSS': HTMLCSSAnalyzer,
-            'Vue': HTMLCSSAnalyzer,
+
+        self.analyzers: dict[str, type[BaseAnalyzer]] = {
+            "Python": PythonAstAnalyzer,
+            "JavaScript": JavaScriptAnalyzer,
+            "TypeScript": JavaScriptAnalyzer,
+            "HTML": HTMLCSSAnalyzer,
+            "CSS": HTMLCSSAnalyzer,
+            "Vue": HTMLCSSAnalyzer,
             # C-style comment languages (// and /* */)
-            'Rust': CStyleAnalyzer,
-            'Go': CStyleAnalyzer,
-            'C/C++': CStyleAnalyzer,
-            'Java': CStyleAnalyzer,
-            'Swift': CStyleAnalyzer,
-            'Objective-C': ObjectiveCAnalyzer,
-            'Kotlin': CStyleAnalyzer,
-            'Terraform': CStyleAnalyzer,
-            'PHP': CStyleAnalyzer,
+            "Rust": CStyleAnalyzer,
+            "Go": CStyleAnalyzer,
+            "C/C++": CStyleAnalyzer,
+            "Java": CStyleAnalyzer,
+            "Swift": CStyleAnalyzer,
+            "Objective-C": ObjectiveCAnalyzer,
+            "Kotlin": CStyleAnalyzer,
+            "Terraform": CStyleAnalyzer,
+            "PHP": CStyleAnalyzer,
             # Hash-comment languages
-            'Shell': ShellAnalyzer,
-            'YAML': ShellAnalyzer,
-            'Config': ShellAnalyzer,
+            "Shell": ShellAnalyzer,
+            "YAML": ShellAnalyzer,
+            "Config": ShellAnalyzer,
         }
-        
+
         # Cache file lives under the user's cache dir, NOT inside the installed
         # package (which may be read-only on pip / Docker installs).
         self._cache_file = _user_cache_path()
-        self._analyzer_instances: Dict[str, BaseAnalyzer] = {}
+        self._analyzer_instances: dict[str, BaseAnalyzer] = {}
         # Track which languages are owned by entry-point plugins so they
         # always win over auto-discovery / cache and aren't persisted as
         # opaque module paths (we re-resolve via entry points each run).
-        self._entry_point_languages: Set[str] = set()
+        self._entry_point_languages: set[str] = set()
         self._load_cached_registrations()
         self._discover_analyzers()
         self._discover_entry_point_plugins()
-    
+
     def _load_cached_registrations(self):
         """Load previously registered analyzers from cache."""
         if not self._cache_file.exists():
             return
-            
+
         try:
-            with open(self._cache_file, 'r') as f:
+            with open(self._cache_file) as f:
                 cached_data = json.load(f)
-                
+
             for language, data in cached_data.items():
                 # Try to import the analyzer module
                 try:
-                    module = importlib.import_module(data['module'])
-                    analyzer_class = getattr(module, data['class_name'])
-                    extensions = set(data['extensions'])
-                    
+                    module = importlib.import_module(data["module"])
+                    analyzer_class = getattr(module, data["class_name"])
+                    extensions = set(data["extensions"])
+
                     # Only register if it's a valid analyzer
-                    if (inspect.isclass(analyzer_class) and 
-                        issubclass(analyzer_class, BaseAnalyzer) and 
-                        analyzer_class != BaseAnalyzer):
+                    if (
+                        inspect.isclass(analyzer_class)
+                        and issubclass(analyzer_class, BaseAnalyzer)
+                        and analyzer_class != BaseAnalyzer
+                    ):
                         self.file_extensions[language] = extensions
                         self.analyzers[language] = analyzer_class
                 except (ImportError, AttributeError):
                     continue
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
-    
+
     def _save_registrations(self):
         """Save current analyzer registrations to cache."""
         cache_data = {}
@@ -161,52 +166,68 @@ class AnalyzerFactory:
             # to a stale module path in the cache.
             if language in self._entry_point_languages:
                 continue
-            if analyzer_class not in [PythonAnalyzer, PythonAstAnalyzer, JavaScriptAnalyzer, HTMLCSSAnalyzer, CStyleAnalyzer, ShellAnalyzer, ObjectiveCAnalyzer]:
+            if analyzer_class not in [
+                PythonAnalyzer,
+                PythonAstAnalyzer,
+                JavaScriptAnalyzer,
+                HTMLCSSAnalyzer,
+                CStyleAnalyzer,
+                ShellAnalyzer,
+                ObjectiveCAnalyzer,
+            ]:
                 cache_data[language] = {
-                    'module': analyzer_class.__module__,
-                    'class_name': analyzer_class.__name__,
-                    'extensions': list(self.file_extensions.get(language, set()))
+                    "module": analyzer_class.__module__,
+                    "class_name": analyzer_class.__name__,
+                    "extensions": list(self.file_extensions.get(language, set())),
                 }
-        
+
         try:
-            with open(self._cache_file, 'w') as f:
+            with open(self._cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
-        except IOError:
+        except OSError:
             pass
-    
+
     def _discover_analyzers(self):
         """Auto-discover analyzer classes in the analyzers directory."""
         analyzers_dir = Path(__file__).parent
-        
-        for file_path in analyzers_dir.glob('*.py'):
+
+        for file_path in analyzers_dir.glob("*.py"):
             # Skip built-in files and non-python files
-            if file_path.stem in ['__init__', 'base', 'factory',
-                                  'c_style', 'cache', 'test_detection', 'python_ast']:
+            if file_path.stem in [
+                "__init__",
+                "base",
+                "factory",
+                "c_style",
+                "cache",
+                "test_detection",
+                "python_ast",
+            ]:
                 continue
-                
+
             try:
                 # Import the module
                 module_name = f".{file_path.stem}"
                 module = importlib.import_module(module_name, package="mettle.analyzers")
-                
+
                 # Look for analyzer classes
                 for name, obj in inspect.getmembers(module, inspect.isclass):
-                    if (issubclass(obj, BaseAnalyzer) and 
-                        obj != BaseAnalyzer and 
-                        obj not in self.analyzers.values()):
-                        
+                    if (
+                        issubclass(obj, BaseAnalyzer)
+                        and obj != BaseAnalyzer
+                        and obj not in self.analyzers.values()
+                    ):
                         # Extract language name from class name
-                        language = name.replace('Analyzer', '')
-                        
+                        language = name.replace("Analyzer", "")
+
                         # Register if not already registered
                         if language not in self.analyzers:
                             self.register_analyzer(language, obj, [])
             except ImportError:
                 continue
-        
+
         # Save any newly discovered analyzers
         self._save_registrations()
-    
+
     def _discover_entry_point_plugins(self) -> None:
         """Load third-party analyzers registered via the `mettle.analyzers` entry point.
 
@@ -243,29 +264,33 @@ class AnalyzerFactory:
                 _log.warning("mettle analyzer plugin %r failed to load: %s", ep.name, exc)
                 continue
 
-            if not (inspect.isclass(obj) and issubclass(obj, BaseAnalyzer) and obj is not BaseAnalyzer):
+            if not (
+                inspect.isclass(obj) and issubclass(obj, BaseAnalyzer) and obj is not BaseAnalyzer
+            ):
                 _log.warning(
                     "mettle analyzer plugin %r resolved to %r which isn't a BaseAnalyzer subclass; skipping.",
-                    ep.name, obj,
+                    ep.name,
+                    obj,
                 )
                 continue
 
-            language = getattr(obj, 'LANGUAGE', None) or ep.name
-            extensions = getattr(obj, 'EXTENSIONS', None)
+            language = getattr(obj, "LANGUAGE", None) or ep.name
+            extensions = getattr(obj, "EXTENSIONS", None)
             if not extensions:
                 _log.warning(
                     "mettle analyzer plugin %r (language %r) declares no EXTENSIONS; skipping.",
-                    ep.name, language,
+                    ep.name,
+                    language,
                 )
                 continue
 
             # Normalise: every entry starts with a dot, lowercased — matches
             # how `get_language()` looks them up.
-            ext_set: Set[str] = set()
+            ext_set: set[str] = set()
             for raw in extensions:
                 e = str(raw).strip().lower()
-                if e and not e.startswith('.'):
-                    e = '.' + e
+                if e and not e.startswith("."):
+                    e = "." + e
                 if e:
                     ext_set.add(e)
 
@@ -276,9 +301,11 @@ class AnalyzerFactory:
             # the new class actually gets used.
             self._analyzer_instances.pop(language, None)
 
-    def register_analyzer(self, language: str, analyzer_class: type, file_extensions: list[str]) -> None:
+    def register_analyzer(
+        self, language: str, analyzer_class: type, file_extensions: list[str]
+    ) -> None:
         """Register a new language analyzer.
-        
+
         Args:
             language: Name of the language
             analyzer_class: The analyzer class to use
@@ -286,85 +313,166 @@ class AnalyzerFactory:
         """
         if not isinstance(file_extensions, set):
             file_extensions = set(file_extensions)
-            
+
         self.file_extensions[language] = file_extensions
         self.analyzers[language] = analyzer_class
         self._save_registrations()
-    
+
     def get_language(self, file_path: str) -> str:
         """Determine the programming language based on file extension."""
         # Get the basename and extension
         basename = os.path.basename(file_path)
-        
+
         # Special case for Dockerfile
-        if basename.lower() == 'dockerfile' or basename.lower().endswith('.dockerfile'):
-            return 'Docker'
-            
+        if basename.lower() == "dockerfile" or basename.lower().endswith(".dockerfile"):
+            return "Docker"
+
         # TypeScript declaration files must be checked BEFORE the .json blanket
         # so `foo.d.ts.json` corner cases don't confuse the order.
-        if basename.lower().endswith('.d.ts'):
-            return 'TypeScript'
+        if basename.lower().endswith(".d.ts"):
+            return "TypeScript"
 
         # Special case for package.json, tsconfig.json, etc.
-        if basename.lower().endswith('.json'):
-            return 'JSON'
+        if basename.lower().endswith(".json"):
+            return "JSON"
 
         # Special case for .gitignore, .npmignore, etc.
-        if basename.startswith('.') and '.' not in basename[1:]:
-            return 'Config'
+        if basename.startswith(".") and "." not in basename[1:]:
+            return "Config"
 
         # Get the extension
         ext = os.path.splitext(file_path.lower())[1]
-        if not ext and '.' in basename:
+        if not ext and "." in basename:
             # Handle files like .gitignore
             ext = f'.{basename.split(".", 1)[1]}'
-            
+
         if not ext:
             # Try to detect by filename
             lower_basename = basename.lower()
-            if lower_basename in {'makefile', 'gnumakefile', 'vagrantfile', 'jenkinsfile', 'rakefile', 'procfile'}:
-                return 'Config'
-            if lower_basename in {'dockerfile'}:
-                return 'Docker'
-            return 'Other'
-            
+            if lower_basename in {
+                "makefile",
+                "gnumakefile",
+                "vagrantfile",
+                "jenkinsfile",
+                "rakefile",
+                "procfile",
+            }:
+                return "Config"
+            if lower_basename in {"dockerfile"}:
+                return "Docker"
+            return "Other"
+
         # Check against known extensions
         for language, extensions in self.file_extensions.items():
             if ext in extensions or basename in extensions:
                 return language
-                
+
         # Additional checks for common data files
-        if ext in {'.csv', '.tsv', '.dat', '.db', '.sqlite', '.sqlite3'}:
-            return 'Data'
+        if ext in {".csv", ".tsv", ".dat", ".db", ".sqlite", ".sqlite3"}:
+            return "Data"
 
         # Additional checks for binary files
-        if ext in {'.bin', '.exe', '.dll', '.so', '.dylib', '.class', '.jar',
-                  '.war', '.ear', '.o', '.obj', '.a', '.lib', '.elf',
-                  '.rmeta', '.rlib', '.pyd',
-                  '.zip', '.tar', '.gz', '.bz2', '.xz', '.7z', '.rar', '.iso',
-                  '.tgz', '.zst', '.lz4',
-                  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
-                  '.webp', '.tiff', '.tif', '.psd',
-                  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.flv', '.mkv',
-                  '.webm', '.ogg', '.flac', '.aac', '.m4a',
-                  '.ttf', '.woff', '.woff2', '.eot', '.otf',
-                  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-                  '.pyc', '.pyo'}:
-            return 'Binary'
+        if ext in {
+            ".bin",
+            ".exe",
+            ".dll",
+            ".so",
+            ".dylib",
+            ".class",
+            ".jar",
+            ".war",
+            ".ear",
+            ".o",
+            ".obj",
+            ".a",
+            ".lib",
+            ".elf",
+            ".rmeta",
+            ".rlib",
+            ".pyd",
+            ".zip",
+            ".tar",
+            ".gz",
+            ".bz2",
+            ".xz",
+            ".7z",
+            ".rar",
+            ".iso",
+            ".tgz",
+            ".zst",
+            ".lz4",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".bmp",
+            ".ico",
+            ".svg",
+            ".webp",
+            ".tiff",
+            ".tif",
+            ".psd",
+            ".mp3",
+            ".mp4",
+            ".wav",
+            ".avi",
+            ".mov",
+            ".flv",
+            ".mkv",
+            ".webm",
+            ".ogg",
+            ".flac",
+            ".aac",
+            ".m4a",
+            ".ttf",
+            ".woff",
+            ".woff2",
+            ".eot",
+            ".otf",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".pyc",
+            ".pyo",
+        }:
+            return "Binary"
 
         # Generated / non-source files
-        if ext in {'.map', '.d', '.timestamp', '.fingerprint', '.sample',
-                  '.tfstate', '.pen', '.backup'}:
-            return 'Generated'
+        if ext in {
+            ".map",
+            ".d",
+            ".timestamp",
+            ".fingerprint",
+            ".sample",
+            ".tfstate",
+            ".pen",
+            ".backup",
+        }:
+            return "Generated"
 
         # CAD / EDA files (tool-generated, not hand-written source)
-        if ext in {'.step', '.stp', '.kicad_pcb', '.kicad_sch', '.kicad_mod',
-                  '.kicad_sym', '.kicad_pro', '.net', '.brd', '.sch',
-                  '.gbr', '.drl'}:
-            return 'Generated'
+        if ext in {
+            ".step",
+            ".stp",
+            ".kicad_pcb",
+            ".kicad_sch",
+            ".kicad_mod",
+            ".kicad_sym",
+            ".kicad_pro",
+            ".net",
+            ".brd",
+            ".sch",
+            ".gbr",
+            ".drl",
+        }:
+            return "Generated"
 
-        return 'Other'
-    
+        return "Other"
+
     def get_analyzer(self, file_path: str) -> BaseAnalyzer:
         """Get the appropriate analyzer for a given file (cached by language)."""
         language = self.get_language(file_path)

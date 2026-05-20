@@ -11,33 +11,36 @@ individual files. It handles:
 """
 
 import os
-from typing import Optional, Tuple
+
 from rich.console import Console
+
+from ..config_manager import ConfigManager
 from ..metrics.file_metrics import FileMetrics
 from .cache import FileMetricsCache, get_default_cache
 from .factory import AnalyzerFactory
-from .test_detection import is_test_file  # re-export for callers
-from ..config_manager import ConfigManager
+from .test_detection import is_test_file as is_test_file  # noqa: F401
+
 
 class FileAnalyzer:
     """
     Class for analyzing individual files.
-    
+
     This class is responsible for:
     - Determining if a file should be analyzed
     - Detecting binary files
     - Reading file content
     - Delegating to language-specific analyzers
     - Collecting metrics for a single file
-    
+
     Attributes:
         debug (bool): Whether to enable debug logging
         max_lines (int): Maximum number of lines for a file to be analyzed
         exclude_types (list): List of file types to exclude
     """
-    
-    def __init__(self, debug=False, max_lines=0, exclude_types=None,
-                 cache: Optional[FileMetricsCache] = None):
+
+    def __init__(
+        self, debug=False, max_lines=0, exclude_types=None, cache: FileMetricsCache | None = None
+    ):
         """
         Initialize the FileAnalyzer.
 
@@ -55,63 +58,133 @@ class FileAnalyzer:
         self.exclude_types = exclude_types or []
         self.analyzer_factory = AnalyzerFactory()
         self.cache = cache if cache is not None else get_default_cache()
-    
+
     # Extensions that are always binary (compiled, compressed, media, etc.)
     BINARY_EXTENSIONS = {
         # Images
-        '.png', '.jpg', '.jpeg', '.gif', '.ico', '.bmp', '.tiff', '.tif',
-        '.webp', '.svg', '.psd', '.ai', '.sketch',
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".ico",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".webp",
+        ".svg",
+        ".psd",
+        ".ai",
+        ".sketch",
         # Documents
-        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
         # Compiled bytecode / objects
-        '.pyc', '.pyo', '.pyd', '.o', '.obj', '.a', '.lib',
-        '.class', '.jar', '.war', '.ear',
+        ".pyc",
+        ".pyo",
+        ".pyd",
+        ".o",
+        ".obj",
+        ".a",
+        ".lib",
+        ".class",
+        ".jar",
+        ".war",
+        ".ear",
         # Native binaries / shared libraries
-        '.exe', '.dll', '.so', '.dylib', '.bin', '.elf',
+        ".exe",
+        ".dll",
+        ".so",
+        ".dylib",
+        ".bin",
+        ".elf",
         # Rust build artifacts
-        '.rmeta', '.rlib',
+        ".rmeta",
+        ".rlib",
         # Archives
-        '.zip', '.tar', '.gz', '.bz2', '.xz', '.7z', '.rar', '.iso',
-        '.tgz', '.tbz2', '.txz', '.zst', '.lz4',
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".rar",
+        ".iso",
+        ".tgz",
+        ".tbz2",
+        ".txz",
+        ".zst",
+        ".lz4",
         # Media
-        '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac', '.ogg',
-        '.mkv', '.wmv', '.flv', '.webm', '.aac', '.m4a',
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".mkv",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".aac",
+        ".m4a",
         # Fonts
-        '.ttf', '.woff', '.woff2', '.eot', '.otf',
+        ".ttf",
+        ".woff",
+        ".woff2",
+        ".eot",
+        ".otf",
         # Databases
-        '.db', '.sqlite', '.sqlite3', '.mdb',
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".mdb",
         # OS files
-        '.DS_Store',
+        ".DS_Store",
     }
 
     # Extensions for generated/non-source files that are text but shouldn't count
     GENERATED_EXTENSIONS = {
-        '.map',           # Source maps
-        '.d',             # Dependency files (make/Rust)
-        '.timestamp',     # Build timestamps
-        '.fingerprint',   # Build fingerprints
-        '.sample',        # Sample/template files (e.g. git hooks)
-        '.tfstate',       # Terraform state (generated)
-        '.pen',           # Pencil design files (not source code)
+        ".map",  # Source maps
+        ".d",  # Dependency files (make/Rust)
+        ".timestamp",  # Build timestamps
+        ".fingerprint",  # Build fingerprints
+        ".sample",  # Sample/template files (e.g. git hooks)
+        ".tfstate",  # Terraform state (generated)
+        ".pen",  # Pencil design files (not source code)
         # CAD / EDA files (generated or tool-specific binary-like text)
-        '.step', '.stp',  # 3D CAD models
-        '.kicad_pcb',     # KiCad PCB layout
-        '.kicad_sch',     # KiCad schematics
-        '.kicad_mod',     # KiCad footprints
-        '.kicad_sym',     # KiCad symbols
-        '.kicad_pro',     # KiCad project
-        '.net',           # Netlist files
-        '.brd',           # Board layout files
-        '.sch',           # Schematic files (Eagle etc.)
-        '.gbr', '.drl',   # Gerber / drill files
-        '.backup',        # Backup files
+        ".step",
+        ".stp",  # 3D CAD models
+        ".kicad_pcb",  # KiCad PCB layout
+        ".kicad_sch",  # KiCad schematics
+        ".kicad_mod",  # KiCad footprints
+        ".kicad_sym",  # KiCad symbols
+        ".kicad_pro",  # KiCad project
+        ".net",  # Netlist files
+        ".brd",  # Board layout files
+        ".sch",  # Schematic files (Eagle etc.)
+        ".gbr",
+        ".drl",  # Gerber / drill files
+        ".backup",  # Backup files
     }
 
     # Lock files are generated, not hand-written source
     LOCK_FILES = {
-        'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
-        'cargo.lock', 'poetry.lock', 'gemfile.lock', 'composer.lock',
-        'pipfile.lock', 'bun.lockb', 'shrinkwrap.json',
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "cargo.lock",
+        "poetry.lock",
+        "gemfile.lock",
+        "composer.lock",
+        "pipfile.lock",
+        "bun.lockb",
+        "shrinkwrap.json",
     }
 
     def is_binary_file(self, file_path: str) -> bool:
@@ -149,6 +222,7 @@ class FileAnalyzer:
         # Check if the file matches any excluded pattern
         if excluded_files:
             import fnmatch
+
             for pattern in excluded_files:
                 if fnmatch.fnmatch(basename, pattern):
                     return True
@@ -159,39 +233,43 @@ class FileAnalyzer:
             # Files larger than 10MB are likely binary
             if file_size > 10 * 1024 * 1024:  # 10MB
                 if self.debug:
-                    self.console.print(f"[yellow]Skipping large file (likely binary): {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]")
+                    self.console.print(
+                        f"[yellow]Skipping large file (likely binary): {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]"
+                    )
                 return True
-        except (OSError, IOError):
+        except OSError:
             pass
 
         # Try to detect binary content by reading a small sample. We also
         # use this sample to spot minified / generated text files so the
         # analyzer doesn't waste time crunching `bundle.min.js` or `*.map`.
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 sample = f.read(8192)
-                if b'\x00' in sample:
+                if b"\x00" in sample:
                     if self.debug:
-                        self.console.print(f"[yellow]Detected binary content in: {file_path}[/yellow]")
+                        self.console.print(
+                            f"[yellow]Detected binary content in: {file_path}[/yellow]"
+                        )
                     return True
                 if self._looks_generated(sample, file_path):
                     return True
-        except (OSError, IOError):
+        except OSError:
             pass
 
         return False
 
     # Markers commonly emitted by code generators and lockfile-style tools.
     _GENERATED_MARKERS = (
-        b'@generated',
-        b'@generated\n',
-        b'DO NOT EDIT',
-        b'AUTOGENERATED',
-        b'autogenerated',
-        b'auto-generated',
-        b'This file is automatically generated',
-        b'Code generated by',
-        b'// Generated by ',
+        b"@generated",
+        b"@generated\n",
+        b"DO NOT EDIT",
+        b"AUTOGENERATED",
+        b"autogenerated",
+        b"auto-generated",
+        b"This file is automatically generated",
+        b"Code generated by",
+        b"// Generated by ",
     )
 
     # First bytes of a v3 sourcemap file. Don't bother peeking deeper.
@@ -203,7 +281,9 @@ class FileAnalyzer:
         for marker in self._GENERATED_MARKERS:
             if marker in sample:
                 if self.debug:
-                    self.console.print(f"[yellow]Skipping generated file ({marker.decode('utf-8', 'replace').strip()}): {file_path}[/yellow]")
+                    self.console.print(
+                        f"[yellow]Skipping generated file ({marker.decode('utf-8', 'replace').strip()}): {file_path}[/yellow]"
+                    )
                 return True
         # Sourcemap shape (most are >100kB single-line JSON).
         if sample.lstrip().startswith(self._SOURCEMAP_PREFIX):
@@ -213,41 +293,49 @@ class FileAnalyzer:
         # Long-line heuristic: minified bundles often have a single line >5000
         # chars or an average line length above ~500 chars. Operating on the
         # 8 kB sample is enough to catch this without reading the whole file.
-        newlines = sample.count(b'\n')
+        newlines = sample.count(b"\n")
         if newlines == 0 and len(sample) >= 4096:
             # 4kB+ with no newline = almost certainly minified or a hash blob.
             if self.debug:
-                self.console.print(f"[yellow]Skipping single-line file (likely minified): {file_path}[/yellow]")
+                self.console.print(
+                    f"[yellow]Skipping single-line file (likely minified): {file_path}[/yellow]"
+                )
             return True
         if newlines > 0:
             avg_line = len(sample) / (newlines + 1)
             if avg_line > 800:
                 if self.debug:
-                    self.console.print(f"[yellow]Skipping file with avg line {avg_line:.0f} chars (likely minified): {file_path}[/yellow]")
+                    self.console.print(
+                        f"[yellow]Skipping file with avg line {avg_line:.0f} chars (likely minified): {file_path}[/yellow]"
+                    )
                 return True
         return False
-    
+
     def should_analyze_file(self, file_path: str) -> bool:
         """
         Determine if a file should be analyzed.
-        
+
         Args:
             file_path: Path to the file to check
-            
+
         Returns:
             True if the file should be analyzed, False otherwise
         """
         # Skip binary files
         if self.is_binary_file(file_path):
             if self.debug:
-                self.console.print(f"[blue]Skipping binary file: {os.path.basename(file_path)}[/blue]")
+                self.console.print(
+                    f"[blue]Skipping binary file: {os.path.basename(file_path)}[/blue]"
+                )
             return False
 
         # Check if file type is in excluded types
         language = self.analyzer_factory.get_language(file_path)
         if language in self.exclude_types:
             if self.debug:
-                self.console.print(f"[blue]Skipping excluded file type ({language}): {file_path}[/blue]")
+                self.console.print(
+                    f"[blue]Skipping excluded file type ({language}): {file_path}[/blue]"
+                )
             return False
 
         # Check for large data files that should be excluded
@@ -256,22 +344,37 @@ class FileAnalyzer:
         except OSError:
             return False
         basename = os.path.basename(file_path)
-        
+
         # Generalised "this isn't source" size caps. Data-shaped extensions
         # (JSON / CSV / XML / SQL dump) hit a much lower ceiling than real
         # source. Hand-written code rarely exceeds 500kB in a single file.
         ext = os.path.splitext(basename)[1].lower()
-        DATA_EXTS = {'.json', '.jsonl', '.ndjson', '.csv', '.tsv', '.xml',
-                     '.yaml', '.yml', '.geojson', '.sql', '.sarif'}
+        DATA_EXTS = {
+            ".json",
+            ".jsonl",
+            ".ndjson",
+            ".csv",
+            ".tsv",
+            ".xml",
+            ".yaml",
+            ".yml",
+            ".geojson",
+            ".sql",
+            ".sarif",
+        }
         if ext in DATA_EXTS and file_size > 1 * 1024 * 1024:
             if self.debug:
-                self.console.print(f"[yellow]Skipping large data file: {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]")
+                self.console.print(
+                    f"[yellow]Skipping large data file: {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]"
+                )
             return False
 
         # Large text files (>500KB) with no extension are likely data files
-        if '.' not in basename and file_size > 500 * 1024:
+        if "." not in basename and file_size > 500 * 1024:
             if self.debug:
-                self.console.print(f"[yellow]Skipping large text data file: {file_path} ({file_size / 1024:.2f} KB)[/yellow]")
+                self.console.print(
+                    f"[yellow]Skipping large text data file: {file_path} ({file_size / 1024:.2f} KB)[/yellow]"
+                )
             return False
 
         # Anything over 2 MB that wasn't already a known data ext is suspicious.
@@ -279,12 +382,14 @@ class FileAnalyzer:
         # gives a much better signal-to-noise ratio for batch scans.
         if file_size > 2 * 1024 * 1024:
             if self.debug:
-                self.console.print(f"[yellow]Skipping very large text file: {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]")
+                self.console.print(
+                    f"[yellow]Skipping very large text file: {file_path} ({file_size / (1024*1024):.2f} MB)[/yellow]"
+                )
             return False
 
         return True
-    
-    def analyze_file(self, file_path: str) -> Tuple[str, FileMetrics]:
+
+    def analyze_file(self, file_path: str) -> tuple[str, FileMetrics]:
         """Analyze a single file and return ``(language, metrics)``.
 
         Hits the per-file cache when `mtime + size` are unchanged so a
@@ -311,13 +416,15 @@ class FileAnalyzer:
             return cached  # (language, metrics)
 
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 content = f.read()
 
             line_count = len(content.splitlines())
             if self.max_lines > 0 and line_count > self.max_lines:
                 if self.debug:
-                    self.console.print(f"[yellow]Skipping large file: {file_path} ({line_count} lines)[/yellow]")
+                    self.console.print(
+                        f"[yellow]Skipping large file: {file_path} ({line_count} lines)[/yellow]"
+                    )
                 return None, FileMetrics()
 
             language = self.analyzer_factory.get_language(file_path)

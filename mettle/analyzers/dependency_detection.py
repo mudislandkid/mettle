@@ -18,8 +18,8 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 # Per-manifest cap so a runaway lockfile-style declaration can't bloat the DB.
 _DEPS_PER_MANIFEST = 500
@@ -30,7 +30,7 @@ _DEPS_PER_PROJECT = 1500
 _NAME_VERSION_KEYS = ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies")
 
 
-def _safe_read(path: Path, max_bytes: int = 512_000) -> Optional[str]:
+def _safe_read(path: Path, max_bytes: int = 512_000) -> str | None:
     """Read at most ``max_bytes`` from a manifest file, or return None on error."""
     try:
         with open(path, "rb") as f:
@@ -46,7 +46,7 @@ def _safe_read(path: Path, max_bytes: int = 512_000) -> Optional[str]:
         return None
 
 
-def _normalize(raw_version: object) -> Optional[str]:
+def _normalize(raw_version: object) -> str | None:
     """Clamp version strings to something small + printable."""
     if raw_version is None:
         return None
@@ -115,11 +115,15 @@ def parse_pyproject_toml(content: str) -> list[dict]:
                         continue
                     if name.lower() == "python":
                         continue
-                    out.append({
-                        "name": name,
-                        "version": _normalize(version if not isinstance(version, dict) else version.get("version")),
-                        "manager": "pypi",
-                    })
+                    out.append(
+                        {
+                            "name": name,
+                            "version": _normalize(
+                                version if not isinstance(version, dict) else version.get("version")
+                            ),
+                            "manager": "pypi",
+                        }
+                    )
                     if len(out) >= _DEPS_PER_MANIFEST:
                         return out
     return out
@@ -208,7 +212,7 @@ def parse_go_mod(content: str) -> list[dict]:
                     return out
             continue
         if line.startswith("require "):
-            after = line[len("require "):].strip()
+            after = line[len("require ") :].strip()
             m = _GO_REQUIRE_LINE.match(after)
             if m:
                 out.append({"name": m.group(1), "version": _normalize(m.group(2)), "manager": "go"})
@@ -235,8 +239,7 @@ def parse_composer_json(content: str) -> list[dict]:
 
 
 _GEMFILE_RE = re.compile(
-    r"""^\s*gem\s+['"]([^'"]+)['"]"""
-    r"""(?:\s*,\s*['"]([^'"]+)['"])?""",
+    r"""^\s*gem\s+['"]([^'"]+)['"]""" r"""(?:\s*,\s*['"]([^'"]+)['"])?""",
     re.MULTILINE,
 )
 
@@ -244,7 +247,9 @@ _GEMFILE_RE = re.compile(
 def parse_gemfile(content: str) -> list[dict]:
     out: list[dict] = []
     for match in _GEMFILE_RE.finditer(content):
-        out.append({"name": match.group(1), "version": _normalize(match.group(2)), "manager": "rubygems"})
+        out.append(
+            {"name": match.group(1), "version": _normalize(match.group(2)), "manager": "rubygems"}
+        )
         if len(out) >= _DEPS_PER_MANIFEST:
             return out
     return out

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from ..database.connection import get_session
-from ..database.models import Tag, FLAG_TYPES, FLAG_LABELS, FLAG_COLORS
-from ..schemas.tags import TagCreate, TagUpdate, TagResponse
+from ..database.models import FLAG_COLORS, FLAG_LABELS, FLAG_TYPES, Tag
+from ..schemas.tags import TagCreate, TagResponse, TagUpdate
 
 router = APIRouter()
 

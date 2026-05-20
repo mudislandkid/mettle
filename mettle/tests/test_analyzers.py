@@ -1,9 +1,10 @@
 import unittest
+
+from ..analyzers.factory import AnalyzerFactory
+from ..analyzers.html_css import HTMLCSSAnalyzer
+from ..analyzers.javascript import JavaScriptAnalyzer
 from ..analyzers.python import PythonAnalyzer
 from ..analyzers.python_ast import PythonAstAnalyzer
-from ..analyzers.javascript import JavaScriptAnalyzer
-from ..analyzers.html_css import HTMLCSSAnalyzer
-from ..analyzers.factory import AnalyzerFactory
 from ..analyzers.test_detection import is_test_file
 
 
@@ -11,28 +12,28 @@ class TestTestFileDetection(unittest.TestCase):
     """The test-file detector backs the test-vs-code segregation feature."""
 
     def test_pytest_style(self):
-        self.assertTrue(is_test_file('/proj/test_module.py'))
-        self.assertTrue(is_test_file('/proj/tests/test_module.py'))
-        self.assertTrue(is_test_file('/proj/src/foo_test.py'))
+        self.assertTrue(is_test_file("/proj/test_module.py"))
+        self.assertTrue(is_test_file("/proj/tests/test_module.py"))
+        self.assertTrue(is_test_file("/proj/src/foo_test.py"))
 
     def test_go_style(self):
-        self.assertTrue(is_test_file('/proj/foo_test.go'))
+        self.assertTrue(is_test_file("/proj/foo_test.go"))
 
     def test_js_spec_and_test(self):
-        self.assertTrue(is_test_file('/proj/foo.spec.ts'))
-        self.assertTrue(is_test_file('/proj/foo.test.tsx'))
-        self.assertTrue(is_test_file('/proj/__tests__/foo.tsx'))
+        self.assertTrue(is_test_file("/proj/foo.spec.ts"))
+        self.assertTrue(is_test_file("/proj/foo.test.tsx"))
+        self.assertTrue(is_test_file("/proj/__tests__/foo.tsx"))
 
     def test_e2e_dir_and_cypress(self):
-        self.assertTrue(is_test_file('/proj/cypress/login.js'))
-        self.assertTrue(is_test_file('/proj/e2e/checkout.spec.ts'))
+        self.assertTrue(is_test_file("/proj/cypress/login.js"))
+        self.assertTrue(is_test_file("/proj/e2e/checkout.spec.ts"))
 
     def test_negatives(self):
         # Common false-positive shapes the regex needs to reject.
-        self.assertFalse(is_test_file('/proj/latest.py'))
-        self.assertFalse(is_test_file('/proj/manifesto.md'))
-        self.assertFalse(is_test_file('/proj/src/foo.py'))
-        self.assertFalse(is_test_file('/proj/contestant.go'))
+        self.assertFalse(is_test_file("/proj/latest.py"))
+        self.assertFalse(is_test_file("/proj/manifesto.md"))
+        self.assertFalse(is_test_file("/proj/src/foo.py"))
+        self.assertFalse(is_test_file("/proj/contestant.go"))
 
 
 class LineSumInvariant(unittest.TestCase):
@@ -48,16 +49,16 @@ class LineSumInvariant(unittest.TestCase):
         )
 
     def test_python_invariant(self):
-        self._check(PythonAnalyzer(), '\n\n# c\ndef f(): pass\n', 'x.py')
+        self._check(PythonAnalyzer(), "\n\n# c\ndef f(): pass\n", "x.py")
 
     def test_javascript_invariant(self):
-        self._check(JavaScriptAnalyzer(), '// c\nfunction f(){}\n/* m */\n', 'x.js')
+        self._check(JavaScriptAnalyzer(), "// c\nfunction f(){}\n/* m */\n", "x.js")
 
     def test_html_invariant(self):
-        self._check(HTMLCSSAnalyzer(), '<!-- c -->\n<div>x</div>\n', 'x.html')
+        self._check(HTMLCSSAnalyzer(), "<!-- c -->\n<div>x</div>\n", "x.html")
 
     def test_css_invariant(self):
-        self._check(HTMLCSSAnalyzer(), '/* c */\nbody { color: red; }\n', 'x.css')
+        self._check(HTMLCSSAnalyzer(), "/* c */\nbody { color: red; }\n", "x.css")
 
 
 class TestPythonAnalyzer(unittest.TestCase):
@@ -65,7 +66,7 @@ class TestPythonAnalyzer(unittest.TestCase):
         self.analyzer = PythonAnalyzer()
 
     def test_python_metrics(self):
-        content = '''
+        content = """
 def decorator(func):
     return func
 
@@ -82,8 +83,8 @@ class MyClass:
 
 from typing import List
 import os
-'''
-        metrics = self.analyzer.analyze_content(content, 'test.py')
+"""
+        metrics = self.analyzer.analyze_content(content, "test.py")
         # decorator, example, __init__
         self.assertEqual(metrics.functions, 3)
         self.assertEqual(metrics.classes, 1)
@@ -97,7 +98,7 @@ import os
     def test_string_with_hash_not_counted_as_comment(self):
         # The `#` inside the string must not be treated as a comment marker.
         content = 'url = "https://example.com"  # real comment\n'
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         self.assertEqual(m.code_lines, 1)
         self.assertEqual(m.comment_lines, 0)  # inline trailing comment on a code line
 
@@ -109,14 +110,14 @@ import os
             "    # xxx debug\n"  # case-insensitive match
             "    # HACK: workaround\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         self.assertEqual(m.todos, 4)
         markers = [marker for _, marker, _ in m.todo_items]
-        self.assertEqual(sorted(markers), ['FIXME', 'HACK', 'TODO', 'XXX'])
+        self.assertEqual(sorted(markers), ["FIXME", "HACK", "TODO", "XXX"])
         lines = [ln for ln, _, _ in m.todo_items]
         self.assertEqual(lines, [1, 3, 4, 5])
         # Text is preserved verbatim (stripped).
-        self.assertIn('refactor this', m.todo_items[0][2])
+        self.assertIn("refactor this", m.todo_items[0][2])
 
 
 class TestPythonAstAnalyzer(unittest.TestCase):
@@ -139,7 +140,7 @@ class TestPythonAstAnalyzer(unittest.TestCase):
             "    async def coro(self):\n"
             "        pass\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         # fetch, outer, inner, coro = 4 functions; coro + fetch = 2 async.
         self.assertEqual(m.functions, 4)
         self.assertEqual(m.classes, 1)
@@ -147,14 +148,14 @@ class TestPythonAstAnalyzer(unittest.TestCase):
     def test_triple_quote_data_literal_not_a_decorator_inflater(self):
         content = (
             'BANNER = """\n'
-            '  multi-line\n'
-            '  literal data\n'
+            "  multi-line\n"
+            "  literal data\n"
             '"""\n'
-            '\n'
-            'def go():\n'
-            '    return BANNER\n'
+            "\n"
+            "def go():\n"
+            "    return BANNER\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         # No decorators in the source; previously the regex pattern could be
         # confused by stray @ in long string literals, but the AST is exact.
         self.assertEqual(m.decorators, 0)
@@ -176,7 +177,7 @@ class TestPythonAstAnalyzer(unittest.TestCase):
             "def target():\n"
             "    pass\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         # Decorators applied: @wraps(f) once, @deco('x') once → 2.
         self.assertEqual(m.decorators, 2)
         # Functions: deco, wrap, inner, target → 4.
@@ -191,7 +192,7 @@ class TestPythonAstAnalyzer(unittest.TestCase):
             "fn = lambda x: x + 1\n"
             "msg = f'value={fn(1)}'\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         # list + set + dict + generator
         self.assertEqual(m.list_comprehensions, 4)
         self.assertEqual(m.lambda_functions, 1)
@@ -200,14 +201,14 @@ class TestPythonAstAnalyzer(unittest.TestCase):
     def test_syntax_error_falls_back_to_regex(self):
         # Mixed-tab nonsense → SyntaxError; AST analyzer must not crash.
         content = "def foo(:\n  pass\n"
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         # Regex fallback handles this; just assert it didn't blow up.
         self.assertEqual(m.total_lines, 2)
 
     def test_factory_uses_ast_analyzer_for_python(self):
         factory = AnalyzerFactory()
         # `get_analyzer` caches instances; identity check should be the AST class.
-        analyzer = factory.get_analyzer('foo.py')
+        analyzer = factory.get_analyzer("foo.py")
         self.assertIsInstance(analyzer, PythonAstAnalyzer)
 
     def test_complexity_captures_branches(self):
@@ -228,11 +229,11 @@ class TestPythonAstAnalyzer(unittest.TestCase):
             "            pass\n"
             "    return 0\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         by_name = {qual: c for _, qual, c, _ in m.complex_functions}
-        self.assertEqual(by_name['simple'], 1)
+        self.assertEqual(by_name["simple"], 1)
         # branchy: 1 base + if + bool-and + if + elif + for + try-except + assert = 8.
-        self.assertGreaterEqual(by_name['branchy'], 7)
+        self.assertGreaterEqual(by_name["branchy"], 7)
 
     def test_complexity_includes_class_qualname(self):
         content = (
@@ -242,9 +243,9 @@ class TestPythonAstAnalyzer(unittest.TestCase):
             "            return 1\n"
             "        return 0\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.py')
+        m = self.analyzer.analyze_content(content, "x.py")
         quals = [q for _, q, _, _ in m.complex_functions]
-        self.assertIn('C.m', quals)
+        self.assertIn("C.m", quals)
 
 
 class TestJavaScriptAnalyzer(unittest.TestCase):
@@ -254,21 +255,21 @@ class TestJavaScriptAnalyzer(unittest.TestCase):
     def test_function_count_excludes_control_flow(self):
         # The old regex matched every `if(){}`/`for(){}`/`while(){}` as a
         # "function". Make sure that regression doesn't come back.
-        content = '''
+        content = """
 function real() {
     if (x) {}
     for (let i = 0; i < 10; i++) {}
     while (true) {}
 }
 const arrow = () => 1;
-'''
-        m = self.analyzer.analyze_content(content, 'x.js')
+"""
+        m = self.analyzer.analyze_content(content, "x.js")
         self.assertEqual(m.functions, 2)
         self.assertEqual(m.classes, 0)
 
     def test_double_slash_inside_string_not_counted(self):
         content = 'const url = "https://example.com"; // real comment\n'
-        m = self.analyzer.analyze_content(content, 'x.js')
+        m = self.analyzer.analyze_content(content, "x.js")
         self.assertEqual(m.code_lines, 1)
         # The trailing `// real comment` is on a code line, so it's not
         # counted as a comment-only line.
@@ -289,7 +290,7 @@ const arrow = () => 1;
             "  )\n"
             "}\n"
         )
-        m = self.analyzer.analyze_content(content, 'App.tsx')
+        m = self.analyzer.analyze_content(content, "App.tsx")
         # Uppercase tags: Header, Footer, Brand = 3
         self.assertEqual(m.jsx_components, 3)
         # Hook calls: useState, useEffect = 2; `useCustom` is defined but not called.
@@ -304,7 +305,7 @@ const arrow = () => 1;
             "}\n"
             "function notAsync() {}\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.ts')
+        m = self.analyzer.analyze_content(content, "x.ts")
         # 3 async forms; notAsync should not be picked up.
         self.assertEqual(m.async_functions, 3)
 
@@ -317,7 +318,7 @@ const arrow = () => 1;
             "enum Color { Red, Green }\n"
             "export const enum Size { S, M, L }\n"
         )
-        m = self.analyzer.analyze_content(content, 'x.ts')
+        m = self.analyzer.analyze_content(content, "x.ts")
         self.assertEqual(m.interfaces, 2)
         self.assertEqual(m.type_aliases, 2)
         self.assertEqual(m.enums, 2)
@@ -328,7 +329,7 @@ class TestHTMLCSSAnalyzer(unittest.TestCase):
         self.analyzer = HTMLCSSAnalyzer()
 
     def test_html_metrics(self):
-        content = '''
+        content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -342,8 +343,8 @@ class TestHTMLCSSAnalyzer(unittest.TestCase):
     </nav>
 </body>
 </html>
-'''
-        metrics = self.analyzer.analyze_content(content, 'test.html')
+"""
+        metrics = self.analyzer.analyze_content(content, "test.html")
         # html, head, meta, title, body, nav, a (closing tags and <!DOCTYPE>
         # are intentionally not counted)
         self.assertEqual(metrics.elements, 7)
@@ -351,7 +352,7 @@ class TestHTMLCSSAnalyzer(unittest.TestCase):
         self.assertEqual(metrics.comment_lines, 1)
 
     def test_css_metrics(self):
-        content = '''
+        content = """
 /* Base styles */
 .navbar {
     display: flex;
@@ -370,8 +371,8 @@ class TestHTMLCSSAnalyzer(unittest.TestCase):
 #home {
     font-weight: bold;
 }
-'''
-        metrics = self.analyzer.analyze_content(content, 'test.css')
+"""
+        metrics = self.analyzer.analyze_content(content, "test.css")
         self.assertEqual(metrics.media_queries, 1)
         # .navbar, .navbar (nested), .navbar a, #home
         self.assertEqual(metrics.selectors, 4)
@@ -383,20 +384,20 @@ class TestAnalyzerFactory(unittest.TestCase):
         self.factory = AnalyzerFactory()
 
     def test_language_detection(self):
-        self.assertEqual(self.factory.get_language('test.py'), 'Python')
-        self.assertEqual(self.factory.get_language('test.js'), 'JavaScript')
-        self.assertEqual(self.factory.get_language('test.tsx'), 'TypeScript')
-        self.assertEqual(self.factory.get_language('test.d.ts'), 'TypeScript')
-        self.assertEqual(self.factory.get_language('test.html'), 'HTML')
-        self.assertEqual(self.factory.get_language('test.css'), 'CSS')
-        self.assertEqual(self.factory.get_language('test.unknown'), 'Other')
+        self.assertEqual(self.factory.get_language("test.py"), "Python")
+        self.assertEqual(self.factory.get_language("test.js"), "JavaScript")
+        self.assertEqual(self.factory.get_language("test.tsx"), "TypeScript")
+        self.assertEqual(self.factory.get_language("test.d.ts"), "TypeScript")
+        self.assertEqual(self.factory.get_language("test.html"), "HTML")
+        self.assertEqual(self.factory.get_language("test.css"), "CSS")
+        self.assertEqual(self.factory.get_language("test.unknown"), "Other")
 
     def test_analyzer_caching(self):
         # get_analyzer should return the same instance per language.
-        a1 = self.factory.get_analyzer('test.py')
-        a2 = self.factory.get_analyzer('other.py')
+        a1 = self.factory.get_analyzer("test.py")
+        a2 = self.factory.get_analyzer("other.py")
         self.assertIs(a1, a2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

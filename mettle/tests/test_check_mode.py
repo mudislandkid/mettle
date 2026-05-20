@@ -12,28 +12,30 @@ class TestParseFailOn(unittest.TestCase):
         self._parse = _parse_fail_on
 
     def test_parses_known_keys(self):
-        thresholds = self._parse([
-            'file-lines-over=500',
-            'functions-over=50',
-            'cyclomatic-over=20',
-            'todo-density-over=10',
-        ])
-        self.assertEqual(thresholds['file-lines-over'], 500)
-        self.assertEqual(thresholds['functions-over'], 50)
-        self.assertEqual(thresholds['cyclomatic-over'], 20)
-        self.assertEqual(thresholds['todo-density-over'], 10)
+        thresholds = self._parse(
+            [
+                "file-lines-over=500",
+                "functions-over=50",
+                "cyclomatic-over=20",
+                "todo-density-over=10",
+            ]
+        )
+        self.assertEqual(thresholds["file-lines-over"], 500)
+        self.assertEqual(thresholds["functions-over"], 50)
+        self.assertEqual(thresholds["cyclomatic-over"], 20)
+        self.assertEqual(thresholds["todo-density-over"], 10)
 
     def test_missing_equals_raises(self):
         with self.assertRaises(ValueError):
-            self._parse(['file-lines-over 500'])
+            self._parse(["file-lines-over 500"])
 
     def test_unknown_key_raises(self):
         with self.assertRaises(ValueError):
-            self._parse(['blah=1'])
+            self._parse(["blah=1"])
 
     def test_non_integer_raises(self):
         with self.assertRaises(ValueError):
-            self._parse(['file-lines-over=ten'])
+            self._parse(["file-lines-over=ten"])
 
     def test_empty_list_returns_empty_dict(self):
         self.assertEqual(self._parse([]), {})

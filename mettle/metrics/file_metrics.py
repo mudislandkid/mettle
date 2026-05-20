@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple
 
 
 @dataclass
@@ -18,9 +17,9 @@ class FileMetrics:
     imports: int = 0
     # Per-file TODO markers (line_no, marker, text). Captured by the base
     # analyzer; reporters/cache treat this as optional.
-    todo_items: List[Tuple[int, str, str]] = field(default_factory=list)
+    todo_items: list[tuple[int, str, str]] = field(default_factory=list)
     # Top-N most complex functions in this file (name, qualname, complexity, line_no).
-    complex_functions: List[Tuple[str, str, int, int]] = field(default_factory=list)
+    complex_functions: list[tuple[str, str, int, int]] = field(default_factory=list)
 
     # Python
     decorators: int = 0

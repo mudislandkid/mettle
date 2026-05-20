@@ -20,12 +20,10 @@ Python-2 files or partial fragments still produce a reasonable answer.
 from __future__ import annotations
 
 import ast
-from typing import Tuple
 
+from ..metrics.file_metrics import FileMetrics
 from .base import BaseAnalyzer, classify_lines
 from .python import PythonAnalyzer
-from ..metrics.file_metrics import FileMetrics
-
 
 # Shared regex (line classification) — comment markers we treat as block
 # comments are docstrings, which the AST visitor handles via Expr/Constant nodes.
@@ -70,7 +68,7 @@ def _function_complexity(node: ast.AST) -> int:
             complexity += len(child.ifs)
         elif isinstance(child, ast.Assert):
             complexity += 1
-        elif hasattr(ast, "Match") and isinstance(child, getattr(ast, "Match")):
+        elif hasattr(ast, "Match") and isinstance(child, ast.Match):
             complexity += len(child.cases)
     return complexity
 
@@ -173,7 +171,7 @@ class PythonAstAnalyzer(BaseAnalyzer):
         super().__init__()
         self._fallback = PythonAnalyzer()
 
-    def count_functions_and_classes(self, content: str) -> Tuple[int, int]:
+    def count_functions_and_classes(self, content: str) -> tuple[int, int]:
         try:
             tree = ast.parse(content)
         except SyntaxError:
@@ -191,7 +189,7 @@ class PythonAstAnalyzer(BaseAnalyzer):
         visitor.visit(tree)
         return visitor.imports
 
-    def analyze_content(self, content: str, file_path: str = '') -> FileMetrics:
+    def analyze_content(self, content: str, file_path: str = "") -> FileMetrics:
         metrics = super().analyze_content(content, file_path)
 
         # Line classification stays regex-based — it matches what every other

@@ -1,15 +1,22 @@
 """Project API routes."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Optional
-from pathlib import Path
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from ..database.connection import get_session
-from ..database.models import Project, ProjectFlag, ProjectNote, ProjectTag, Tag, FLAG_TYPES
-from ..database.models import Analysis
+from ..database.models import (
+    FLAG_TYPES,
+    Analysis,
+    Project,
+    ProjectFlag,
+    ProjectNote,
+    ProjectTag,
+    Tag,
+)
 from ..schemas.analysis import (
     DependencyUsage,
     DependencyUsageResponse,
@@ -42,12 +49,16 @@ def _get_note_text(session: Session, path: str) -> str:
     return note.notes if note else ""
 
 
-def get_project_response(project: Project, session: Optional[Session] = None) -> ProjectResponse:
+def get_project_response(project: Project, session: Session | None = None) -> ProjectResponse:
     """Convert a Project model to ProjectResponse, attaching notes if a session is given."""
     code_pct = (project.code_lines / project.total_lines * 100) if project.total_lines > 0 else 0
-    test_pct = (project.test_total_lines / project.total_lines * 100) if project.total_lines > 0 else 0
+    test_pct = (
+        (project.test_total_lines / project.total_lines * 100) if project.total_lines > 0 else 0
+    )
     flags = [f.flag_type for f in project.flags]
-    tags = [{"id": pt.tag.id, "name": pt.tag.name, "color": pt.tag.color} for pt in project.project_tags]
+    tags = [
+        {"id": pt.tag.id, "name": pt.tag.name, "color": pt.tag.color} for pt in project.project_tags
+    ]
     notes = _get_note_text(session, project.path) if session is not None else ""
 
     return ProjectResponse(
@@ -94,23 +105,38 @@ def get_project_response(project: Project, session: Optional[Session] = None) ->
 
 # Columns whitelisted for `sort_by`. Avoids letting clients sort by arbitrary
 # attribute names (which would either explode or leak schema details).
-_SORTABLE_COLUMNS = frozenset({
-    'name', 'path', 'total_files', 'total_lines', 'code_lines',
-    'comment_lines', 'blank_lines', 'functions', 'classes', 'todos',
-    'imports', 'avg_lines_per_file', 'test_total_lines', 'test_code_lines',
-    'last_commit_at',
-})
+_SORTABLE_COLUMNS = frozenset(
+    {
+        "name",
+        "path",
+        "total_files",
+        "total_lines",
+        "code_lines",
+        "comment_lines",
+        "blank_lines",
+        "functions",
+        "classes",
+        "todos",
+        "imports",
+        "avg_lines_per_file",
+        "test_total_lines",
+        "test_code_lines",
+        "last_commit_at",
+    }
+)
 
 
 @router.get("/", response_model=list[ProjectResponse])
 async def list_projects(
-    analysis_id: Optional[int] = Query(None, description="Filter by analysis ID"),
-    flag: Optional[str] = Query(None, description="Filter by flag type"),
-    tag: Optional[str] = Query(None, description="Filter by tag name"),
-    exclude_flag: Optional[str] = Query(None, description="Exclude projects with this flag"),
-    search: Optional[str] = Query(None, description="Search project name"),
-    stale_days: Optional[int] = Query(
-        None, ge=1, le=3650,
+    analysis_id: int | None = Query(None, description="Filter by analysis ID"),
+    flag: str | None = Query(None, description="Filter by flag type"),
+    tag: str | None = Query(None, description="Filter by tag name"),
+    exclude_flag: str | None = Query(None, description="Exclude projects with this flag"),
+    search: str | None = Query(None, description="Search project name"),
+    stale_days: int | None = Query(
+        None,
+        ge=1,
+        le=3650,
         description="Only return projects whose last commit is older than this many days (or has no commit at all)",
     ),
     sort_by: str = Query("total_lines", description="Sort by field"),
@@ -147,17 +173,16 @@ async def list_projects(
     # explicitly-archived projects since those are intentionally inactive.
     if stale_days is not None:
         from sqlalchemy import or_
+
         cutoff = datetime.now(timezone.utc) - timedelta(days=stale_days)
-        archived_ids = select(ProjectFlag.project_id).where(ProjectFlag.flag_type == 'archived')
-        query = (
-            query
-            .where(or_(Project.last_commit_at == None, Project.last_commit_at < cutoff))  # noqa: E711
-            .where(Project.id.not_in(archived_ids))
-        )
+        archived_ids = select(ProjectFlag.project_id).where(ProjectFlag.flag_type == "archived")
+        query = query.where(
+            or_(Project.last_commit_at == None, Project.last_commit_at < cutoff)
+        ).where(Project.id.not_in(archived_ids))  # noqa: E711
 
     # Sorting — column allowlist so users can't reach into class internals.
     if sort_by not in _SORTABLE_COLUMNS:
-        sort_by = 'total_lines'
+        sort_by = "total_lines"
     sort_column = getattr(Project, sort_by)
     if sort_order == "desc":
         query = query.order_by(sort_column.desc())
@@ -196,8 +221,7 @@ async def update_project_flags(
     for flag_type in request.flags:
         if flag_type not in FLAG_TYPES:
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid flag type: {flag_type}. Valid types: {FLAG_TYPES}"
+                status_code=400, detail=f"Invalid flag type: {flag_type}. Valid types: {FLAG_TYPES}"
             )
 
     # Remove existing flags
@@ -295,6 +319,7 @@ async def refresh_project_analysis(
         # Import analyze_project from batch_analyze
         import sys
         from pathlib import Path as P
+
         PROJECT_ROOT = P(__file__).parents[3]
         sys.path.insert(0, str(PROJECT_ROOT))
         from batch_analyze import analyze_project
@@ -337,7 +362,9 @@ async def refresh_project_analysis(
         raw_commit_at = result.get("last_commit_at")
         if raw_commit_at:
             try:
-                project.last_commit_at = datetime.fromisoformat(raw_commit_at.replace('Z', '+00:00'))
+                project.last_commit_at = datetime.fromisoformat(
+                    raw_commit_at.replace("Z", "+00:00")
+                )
             except ValueError:
                 project.last_commit_at = None
         else:
@@ -396,29 +423,33 @@ async def compare_projects(
             raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
         analysis = session.get(Analysis, project.analysis_id)
         if analysis is None:
-            raise HTTPException(status_code=500, detail=f"Analysis for project {project_id} missing")
-        entries.append(ProjectCompareEntry(
-            id=project.id,
-            name=project.name,
-            path=project.path,
-            analysis_id=project.analysis_id,
-            analyzed_at=analysis.analyzed_at,
-            total_files=project.total_files,
-            total_lines=project.total_lines,
-            code_lines=project.code_lines,
-            comment_lines=project.comment_lines,
-            blank_lines=project.blank_lines,
-            functions=project.functions,
-            classes=project.classes,
-            todos=project.todos,
-            imports=project.imports,
-            test_files=project.test_files,
-            test_total_lines=project.test_total_lines,
-            avg_lines_per_file=project.avg_lines_per_file,
-            languages=list(project.languages or []),
-            last_commit_at=project.last_commit_at,
-            health_score=compute_health(project).score,
-        ))
+            raise HTTPException(
+                status_code=500, detail=f"Analysis for project {project_id} missing"
+            )
+        entries.append(
+            ProjectCompareEntry(
+                id=project.id,
+                name=project.name,
+                path=project.path,
+                analysis_id=project.analysis_id,
+                analyzed_at=analysis.analyzed_at,
+                total_files=project.total_files,
+                total_lines=project.total_lines,
+                code_lines=project.code_lines,
+                comment_lines=project.comment_lines,
+                blank_lines=project.blank_lines,
+                functions=project.functions,
+                classes=project.classes,
+                todos=project.todos,
+                imports=project.imports,
+                test_files=project.test_files,
+                test_total_lines=project.test_total_lines,
+                avg_lines_per_file=project.avg_lines_per_file,
+                languages=list(project.languages or []),
+                last_commit_at=project.last_commit_at,
+                health_score=compute_health(project).score,
+            )
+        )
 
     return ProjectCompareResponse(projects=entries)
 
@@ -452,11 +483,13 @@ async def dependency_usage(
             if not isinstance(name, str) or not isinstance(manager, str):
                 continue
             key = (manager, name)
-            grouped.setdefault(key, []).append({
-                "id": project.id,
-                "name": project.name,
-                "version": dep.get("version"),
-            })
+            grouped.setdefault(key, []).append(
+                {
+                    "id": project.id,
+                    "name": project.name,
+                    "version": dep.get("version"),
+                }
+            )
 
     by_manager: dict[str, list[DependencyUsage]] = {}
     total_unique = 0
@@ -464,12 +497,14 @@ async def dependency_usage(
         if len(projects) < min_projects:
             continue
         total_unique += 1
-        by_manager.setdefault(manager, []).append(DependencyUsage(
-            name=name,
-            manager=manager,
-            project_count=len(projects),
-            projects=projects,
-        ))
+        by_manager.setdefault(manager, []).append(
+            DependencyUsage(
+                name=name,
+                manager=manager,
+                project_count=len(projects),
+                projects=projects,
+            )
+        )
 
     # Sort each manager's list by usage descending, then alphabetically.
     for mgr in by_manager:
@@ -487,14 +522,18 @@ _BULK_PROJECT_LIMIT = 500  # belt-and-braces cap so a typo doesn't melt the DB
 async def bulk_update_flags(request: BulkFlagRequest, session: Session = Depends(get_session)):
     """Add / remove / replace flags across many projects in one call."""
     if request.operation not in _VALID_FLAG_OPERATIONS:
-        raise HTTPException(status_code=400, detail=f"operation must be one of {sorted(_VALID_FLAG_OPERATIONS)}")
+        raise HTTPException(
+            status_code=400, detail=f"operation must be one of {sorted(_VALID_FLAG_OPERATIONS)}"
+        )
     for flag_type in request.flags:
         if flag_type not in FLAG_TYPES:
             raise HTTPException(status_code=400, detail=f"Invalid flag type: {flag_type}")
     if not request.project_ids:
         return BulkResult(updated=0, skipped=0, project_ids=[])
     if len(request.project_ids) > _BULK_PROJECT_LIMIT:
-        raise HTTPException(status_code=400, detail=f"too many project_ids (max {_BULK_PROJECT_LIMIT})")
+        raise HTTPException(
+            status_code=400, detail=f"too many project_ids (max {_BULK_PROJECT_LIMIT})"
+        )
 
     updated_ids: list[int] = []
     skipped = 0
@@ -532,11 +571,15 @@ async def bulk_update_flags(request: BulkFlagRequest, session: Session = Depends
 async def bulk_update_tag(request: BulkTagRequest, session: Session = Depends(get_session)):
     """Add or remove a single tag across many projects."""
     if request.operation not in _VALID_TAG_OPERATIONS:
-        raise HTTPException(status_code=400, detail=f"operation must be one of {sorted(_VALID_TAG_OPERATIONS)}")
+        raise HTTPException(
+            status_code=400, detail=f"operation must be one of {sorted(_VALID_TAG_OPERATIONS)}"
+        )
     if not request.project_ids:
         return BulkResult(updated=0, skipped=0, project_ids=[])
     if len(request.project_ids) > _BULK_PROJECT_LIMIT:
-        raise HTTPException(status_code=400, detail=f"too many project_ids (max {_BULK_PROJECT_LIMIT})")
+        raise HTTPException(
+            status_code=400, detail=f"too many project_ids (max {_BULK_PROJECT_LIMIT})"
+        )
 
     tag = session.get(Tag, request.tag_id)
     if tag is None:
@@ -606,6 +649,7 @@ async def project_highlights(
     # datetime.min as the sort key. Skip archived flag, since those are
     # intentionally inactive.
     from datetime import datetime as _dt
+
     EPOCH = _dt(1970, 1, 1, tzinfo=timezone.utc)
 
     def commit_age_key(p: Project):
@@ -677,28 +721,37 @@ def _snapshot(project: Project, analysis: Analysis) -> ProjectMetricsSnapshot:
     )
 
 
-def _build_diff(before: ProjectMetricsSnapshot, after: ProjectMetricsSnapshot) -> list[ProjectDiffEntry]:
+def _build_diff(
+    before: ProjectMetricsSnapshot, after: ProjectMetricsSnapshot
+) -> list[ProjectDiffEntry]:
     entries: list[ProjectDiffEntry] = []
     for metric in _DIFF_METRICS:
         b = float(getattr(before, metric))
         a = float(getattr(after, metric))
         delta_pct = ((a - b) / b * 100) if b > 0 else None
-        entries.append(ProjectDiffEntry(metric=metric, before=b, after=a, delta=a - b, delta_pct=delta_pct))
+        entries.append(
+            ProjectDiffEntry(metric=metric, before=b, after=a, delta=a - b, delta_pct=delta_pct)
+        )
     # Health score is special — it's already a derived 0-100 value.
-    entries.append(ProjectDiffEntry(
-        metric="health_score",
-        before=float(before.health_score),
-        after=float(after.health_score),
-        delta=float(after.health_score) - float(before.health_score),
-        delta_pct=None,
-    ))
+    entries.append(
+        ProjectDiffEntry(
+            metric="health_score",
+            before=float(before.health_score),
+            after=float(after.health_score),
+            delta=float(after.health_score) - float(before.health_score),
+            delta_pct=None,
+        )
+    )
     return entries
 
 
 @router.get("/{project_id}/diff", response_model=ProjectDiffResponse)
 async def diff_project(
     project_id: int,
-    other: Optional[int] = Query(None, description="Other project ID to diff against (defaults to previous analysis of same path)"),
+    other: int | None = Query(
+        None,
+        description="Other project ID to diff against (defaults to previous analysis of same path)",
+    ),
     session: Session = Depends(get_session),
 ):
     """Diff two analyses of the same project path. By default, diffs the
@@ -749,7 +802,8 @@ async def diff_project(
         before=before_snap,
         after=after_snap,
         entries=_build_diff(before_snap, after_snap),
-        days_between=(after_analysis.analyzed_at - before_analysis.analyzed_at).total_seconds() / 86400.0,
+        days_between=(after_analysis.analyzed_at - before_analysis.analyzed_at).total_seconds()
+        / 86400.0,
         languages_added=sorted(after_langs - before_langs),
         languages_removed=sorted(before_langs - after_langs),
     )

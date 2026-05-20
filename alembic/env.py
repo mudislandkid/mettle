@@ -1,9 +1,11 @@
 """Alembic environment for Mettle's SQLite schema."""
+
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
+
+from alembic import context
 
 # Import all models so that SQLModel.metadata is populated.
 from web.backend.database import models  # noqa: F401

@@ -47,10 +47,7 @@ class TestPyproject(unittest.TestCase):
         self.assertEqual(names, ["fastapi", "rich", "uvicorn", "websockets"])
 
     def test_poetry_style(self):
-        content = (
-            '[tool.poetry.dependencies]\npython = "^3.11"\n'
-            'requests = "^2.31"\n'
-        )
+        content = '[tool.poetry.dependencies]\npython = "^3.11"\n' 'requests = "^2.31"\n'
         deps = parse_pyproject_toml(content)
         names = {d["name"] for d in deps}
         self.assertIn("requests", names)
@@ -75,9 +72,7 @@ class TestRequirements(unittest.TestCase):
 class TestCargo(unittest.TestCase):
     def test_string_and_table_versions(self):
         content = (
-            "[dependencies]\n"
-            'serde = "1.0"\n'
-            'tokio = { version = "1", features = ["full"] }\n'
+            "[dependencies]\n" 'serde = "1.0"\n' 'tokio = { version = "1", features = ["full"] }\n'
         )
         deps = parse_cargo_toml(content)
         by_name = {d["name"]: d["version"] for d in deps}
@@ -112,11 +107,7 @@ class TestComposer(unittest.TestCase):
 
 class TestGemfile(unittest.TestCase):
     def test_simple_lines(self):
-        content = (
-            "source 'https://rubygems.org'\n"
-            "gem 'rails', '~> 7.0'\n"
-            "gem 'puma'\n"
-        )
+        content = "source 'https://rubygems.org'\n" "gem 'rails', '~> 7.0'\n" "gem 'puma'\n"
         deps = parse_gemfile(content)
         by_name = {d["name"]: d["version"] for d in deps}
         self.assertEqual(by_name["rails"], "~> 7.0")
@@ -127,12 +118,8 @@ class TestDetectDependencies(unittest.TestCase):
     def test_reads_each_supported_manifest_once(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "package.json").write_text(
-                '{"dependencies": {"react": "^18"}}'
-            )
-            (root / "pyproject.toml").write_text(
-                '[project]\nname="x"\ndependencies=["fastapi"]\n'
-            )
+            (root / "package.json").write_text('{"dependencies": {"react": "^18"}}')
+            (root / "pyproject.toml").write_text('[project]\nname="x"\ndependencies=["fastapi"]\n')
             deps = detect_dependencies(root)
             managers = {d["manager"] for d in deps}
             self.assertEqual(managers, {"npm", "pypi"})
@@ -141,9 +128,7 @@ class TestDetectDependencies(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             # Both files would declare react; only one row should survive.
-            (root / "package.json").write_text(
-                '{"dependencies": {"react": "^18"}}'
-            )
+            (root / "package.json").write_text('{"dependencies": {"react": "^18"}}')
             (root / "Cargo.toml").write_text(
                 '[dependencies]\nreact = "0.1"\n'  # different manager → both kept
             )

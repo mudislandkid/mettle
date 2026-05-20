@@ -43,15 +43,17 @@ class TestHealthScore(unittest.TestCase):
         self.assertGreater(score, 70)
 
     def test_stale_project_with_no_tests_scores_low(self):
-        score = compute_health(make_project(
-            test_files=0,
-            test_total_lines=0,
-            test_code_lines=0,
-            last_commit_at=datetime.now(timezone.utc) - timedelta(days=500),
-            todos=200,
-            avg_lines_per_file=1200,
-            comment_lines=0,
-        )).score
+        score = compute_health(
+            make_project(
+                test_files=0,
+                test_total_lines=0,
+                test_code_lines=0,
+                last_commit_at=datetime.now(timezone.utc) - timedelta(days=500),
+                todos=200,
+                avg_lines_per_file=1200,
+                comment_lines=0,
+            )
+        ).score
         self.assertLess(score, 30)
 
     def test_score_components_sum_with_weights(self):
@@ -62,9 +64,16 @@ class TestHealthScore(unittest.TestCase):
         self.assertAlmostEqual(breakdown.score, round(recomputed, 1), places=1)
 
     def test_zero_total_lines_is_safe(self):
-        p = make_project(total_lines=0, code_lines=0, comment_lines=0,
-                         blank_lines=0, total_files=0, test_files=0,
-                         test_total_lines=0, test_code_lines=0)
+        p = make_project(
+            total_lines=0,
+            code_lines=0,
+            comment_lines=0,
+            blank_lines=0,
+            total_files=0,
+            test_files=0,
+            test_total_lines=0,
+            test_code_lines=0,
+        )
         # Must not raise and must return a finite score.
         score = compute_health(p).score
         self.assertGreaterEqual(score, 0)

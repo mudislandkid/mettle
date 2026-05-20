@@ -30,8 +30,9 @@ def log(message: str, color: str = Colors.RESET) -> None:
 def check_python_deps() -> bool:
     try:
         import fastapi  # noqa: F401
-        import uvicorn  # noqa: F401
         import sqlmodel  # noqa: F401
+        import uvicorn  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -77,10 +78,14 @@ def start_backend(host: str, port: int, reload: bool) -> subprocess.Popen:
     env["PYTHONPATH"] = str(WEB_DIR.parent)
 
     cmd = [
-        sys.executable, "-m", "uvicorn",
+        sys.executable,
+        "-m",
+        "uvicorn",
         "backend.main:app",
-        "--host", host,
-        "--port", str(port),
+        "--host",
+        host,
+        "--port",
+        str(port),
     ]
     if reload:
         cmd.append("--reload")
@@ -117,9 +122,15 @@ def main(args: argparse.Namespace | None = None) -> int:
             default="dev",
             help="Run mode: dev (both servers, with reload), prod (build frontend + serve via backend), backend-only",
         )
-        parser.add_argument("--backend-host", default="127.0.0.1", help="Backend host (default: 127.0.0.1)")
-        parser.add_argument("--backend-port", type=int, default=8000, help="Backend port (default: 8000)")
-        parser.add_argument("--frontend-port", type=int, default=5173, help="Frontend dev port (default: 5173)")
+        parser.add_argument(
+            "--backend-host", default="127.0.0.1", help="Backend host (default: 127.0.0.1)"
+        )
+        parser.add_argument(
+            "--backend-port", type=int, default=8000, help="Backend port (default: 8000)"
+        )
+        parser.add_argument(
+            "--frontend-port", type=int, default=5173, help="Frontend dev port (default: 5173)"
+        )
         parser.add_argument(
             "--skip-install",
             action="store_true",
@@ -144,7 +155,7 @@ def main(args: argparse.Namespace | None = None) -> int:
             else:
                 log(
                     "Python deps missing. From the repo root run:\n"
-                    "    pip install -e \".[web]\"\n"
+                    '    pip install -e ".[web]"\n'
                     "or re-run this script with --auto-install.",
                     Colors.RED,
                 )
@@ -217,7 +228,10 @@ def main(args: argparse.Namespace | None = None) -> int:
                 while True:
                     exited = next((p for p in processes if p.poll() is not None), None)
                     if exited is not None:
-                        log(f"Process exited (rc={exited.returncode}); shutting down peers.", Colors.YELLOW)
+                        log(
+                            f"Process exited (rc={exited.returncode}); shutting down peers.",
+                            Colors.YELLOW,
+                        )
                         break
                     time.sleep(1)
             finally:

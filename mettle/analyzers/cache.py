@@ -21,10 +21,8 @@ import tempfile
 import threading
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
 
 from ..metrics.file_metrics import FileMetrics
-
 
 _CACHE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS file_metrics (
@@ -55,11 +53,11 @@ class FileMetricsCache:
     doesn't touch the filesystem.
     """
 
-    def __init__(self, path: Optional[Path] = None, enabled: bool = True):
+    def __init__(self, path: Path | None = None, enabled: bool = True):
         self.path = path or _default_cache_path()
         self.enabled = enabled
         self._lock = threading.Lock()
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self.hits = 0
         self.misses = 0
 
@@ -95,7 +93,7 @@ class FileMetricsCache:
 
     # --------------------------------------------------------------- lookups
 
-    def get(self, file_path: str, mtime_ns: int, size: int) -> Optional[tuple[str, FileMetrics]]:
+    def get(self, file_path: str, mtime_ns: int, size: int) -> tuple[str, FileMetrics] | None:
         """Return `(language, metrics)` if there's a fresh cache hit, else None."""
         if not self.enabled:
             return None
@@ -121,7 +119,9 @@ class FileMetricsCache:
         self.hits += 1
         return language, metrics
 
-    def put(self, file_path: str, mtime_ns: int, size: int, language: str, metrics: FileMetrics) -> None:
+    def put(
+        self, file_path: str, mtime_ns: int, size: int, language: str, metrics: FileMetrics
+    ) -> None:
         if not self.enabled:
             return
         payload = json.dumps(asdict(metrics))
@@ -143,7 +143,7 @@ class FileMetricsCache:
 
 
 # Module-level singleton for convenient sharing across analyzer instances.
-_default_cache: Optional[FileMetricsCache] = None
+_default_cache: FileMetricsCache | None = None
 _default_cache_lock = threading.Lock()
 
 
