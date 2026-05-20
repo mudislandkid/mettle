@@ -141,8 +141,13 @@ def test_git_stats_returns_403_for_db_path_outside_roots(security_env, tmp_path)
     client = TestClient(backend_main.app)
 
     # Seed an Analysis row first (Project.analysis_id is non-nullable).
-    from web.backend.database.connection import engine
+    from web.backend.database.connection import engine, run_migrations
     from web.backend.database.models import Analysis, Project
+
+    # Apply migrations so the schema exists in whichever DB the engine points at.
+    # The lifespan handler does this on real boot, but TestClient doesn't trigger
+    # lifespan for synchronous in-process tests reliably.
+    run_migrations()
 
     with Session(engine) as session:
         analysis = Analysis(directory_path=str(outside))
