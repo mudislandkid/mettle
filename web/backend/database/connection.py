@@ -1,8 +1,11 @@
 """Database connection and session management."""
-
-from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy import event
+from pathlib import Path
 from typing import Generator
+
+from alembic import command
+from alembic.config import Config as AlembicConfig
+from sqlalchemy import event
+from sqlmodel import Session, create_engine
 
 from ..config import DATABASE_URL
 
@@ -23,8 +26,12 @@ def _enable_sqlite_pragmas(dbapi_connection, _connection_record):
     cursor.close()
 
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
+def run_migrations() -> None:
+    """Run Alembic migrations to head. Called at backend startup."""
+    repo_root = Path(__file__).resolve().parents[3]
+    alembic_cfg = AlembicConfig(str(repo_root / "alembic.ini"))
+    alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+    command.upgrade(alembic_cfg, "head")
 
 
 def get_session() -> Generator[Session, None, None]:

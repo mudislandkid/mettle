@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from .database.connection import create_db_and_tables
+from .database.connection import run_migrations
 from .api import routes_analysis, routes_projects, routes_tags, routes_export, routes_git
 from .config import CORS_ORIGINS
 
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     # schedule websocket broadcasts back into it. Lazy capture on the first
     # request can race or pick the wrong loop under multi-worker uvicorn.
     routes_analysis.main_loop = asyncio.get_running_loop()
-    create_db_and_tables()
+    run_migrations()
     yield
 
 
