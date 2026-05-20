@@ -61,6 +61,10 @@ class DirectoryAnalyzer:
         self.exclude_dirs = exclude_dirs or []
         self.file_analyzer = FileAnalyzer(debug, max_lines, exclude_types)
 
+        from ..secrets import SecretScanner
+
+        self._secret_scanner = SecretScanner()
+
         # Default excludes as a fallback (mirrors config.yaml)
         self.default_excludes = {
             # Version control
@@ -238,6 +242,21 @@ class DirectoryAnalyzer:
         # Captured complex functions across the project. Each entry:
         # {"file": str, "name": str, "qualname": str, "complexity": int, "line": int}
         self.complex_functions: list[dict] = []
+        # Phase C: re-build FileAnalyzer with the project-aware scanner so
+        # SecretMatch entries get the right relative paths. The scanner is
+        # stateless; the FileAnalyzer carries project_root + the cache.
+        from pathlib import Path
+
+        project_root = Path(directory).resolve()
+        self.file_analyzer = FileAnalyzer(
+            self.debug,
+            self.max_lines,
+            self.exclude_types,
+            cache=self.file_analyzer.cache,  # preserve the cache instance
+            secret_scanner=self._secret_scanner,
+            project_root=project_root,
+        )
+
         # Reset cache counters so debug output shows the savings for *this* scan.
         self.file_analyzer.cache.reset_stats()
         self._excluded_dir_cache = None  # rebuilt lazily on first is_excluded call
@@ -366,6 +385,8 @@ class DirectoryAnalyzer:
                 f"[dim]file-metrics cache: {cache.hits} hits, {cache.misses} misses[/dim]"
             )
 
+        secret_findings = list(self.file_analyzer.secret_findings)
+
         return {
             "metrics_by_language": self.metrics_by_language,
             "language_stats": language_stats,
@@ -383,6 +404,7 @@ class DirectoryAnalyzer:
             )[:30],
             "cache_hits": cache.hits,
             "cache_misses": cache.misses,
+            "secret_findings": secret_findings,
         }
 
     def save_metrics(self, output_path: str, source_directory: str | None = None):

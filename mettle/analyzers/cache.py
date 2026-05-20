@@ -24,7 +24,7 @@ from pathlib import Path
 
 from ..metrics.file_metrics import FileMetrics
 
-_CACHE_SCHEMA_VERSION = 2
+_CACHE_SCHEMA_VERSION = 3
 
 _CACHE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -85,13 +85,14 @@ class FileMetricsCache:
         return self._conn
 
     def _enforce_schema_version(self, conn: sqlite3.Connection) -> None:
-        """If the on-disk schema version doesn't match the current one, wipe
-        the file_metrics table. The first get/put after this rebuilds entries
-        with the new column shape."""
+        """If the on-disk schema version doesn't match the current one, drop
+        and recreate the file_metrics table so the column layout is always
+        current. (DELETE FROM only removes rows — it cannot add columns.)"""
         row = conn.execute("SELECT value FROM schema_meta WHERE key = 'version'").fetchone()
         on_disk = int(row[0]) if row else 0
         if on_disk != _CACHE_SCHEMA_VERSION:
-            conn.execute("DELETE FROM file_metrics")
+            conn.execute("DROP TABLE IF EXISTS file_metrics")
+            conn.executescript(_CACHE_SCHEMA)
             conn.execute(
                 "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)",
                 (str(_CACHE_SCHEMA_VERSION),),
