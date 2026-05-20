@@ -93,15 +93,15 @@ def get_project_name(directory_path: str, history: dict) -> str:
 def _state_base_dir() -> Path:
     """Where CLI state (analysis output, history) lives.
 
-    Honours $CODE_COUNTER_HOME for tests / web-backend callers, otherwise
-    falls back to ~/.code_counter so output isn't sprinkled wherever the user
+    Honours $METTLE_HOME for tests / web-backend callers, otherwise
+    falls back to ~/.mettle so output isn't sprinkled wherever the user
     happened to be when they launched the tool.
     """
-    override = os.environ.get('CODE_COUNTER_HOME')
+    override = os.environ.get('METTLE_HOME')
     if override:
         base = Path(override).expanduser()
     else:
-        base = Path.home() / '.code_counter'
+        base = Path.home() / '.mettle'
     base.mkdir(parents=True, exist_ok=True)
     return base
 
@@ -119,7 +119,7 @@ def create_analysis_directory(project_name: str) -> Path:
 
 
 def get_history_file() -> Path:
-    """Get the path to the history file (under ~/.code_counter)."""
+    """Get the path to the history file (under ~/.mettle)."""
     return _state_base_dir() / 'history.json'
 
 def load_history() -> dict:
@@ -306,7 +306,7 @@ def run_check_mode(args) -> int:
 def _print_diff_against_last(console: Console, directory: str, metrics_path: Path) -> None:
     """Compare just-finished analysis to the most recent prior metrics.json
     for the same target directory."""
-    base_dir = metrics_path.parent.parent  # ~/.code_counter/analysis/
+    base_dir = metrics_path.parent.parent  # ~/.mettle/analysis/
     target_resolved = str(Path(directory).resolve())
 
     # All prior run directories, newest first, excluding the one we just wrote.
