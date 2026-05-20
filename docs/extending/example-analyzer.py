@@ -1,21 +1,26 @@
-"""
-Template Analyzer Module
+"""Example analyzer plugin — demonstrates the Mettle analyzer plugin contract.
 
-This is a template for creating new language-specific analyzers.
-It is not meant to be used directly, but rather as a starting point
-for implementing analyzers for new languages.
-
-To create a new analyzer:
-1. Copy this file and rename it to match your language (e.g., rust.py)
-2. Rename the class to match your language (e.g., RustAnalyzer)
-3. Implement the language-specific analysis methods
-4. Register your analyzer in the AnalyzerFactory
+This file is NOT loaded by Mettle. It exists as a reference for authors of
+third-party analyzer plugins. To register a custom analyzer as an entry-point
+plugin, package this kind of class into a separate distribution and declare
+the entry point under [project.entry-points."mettle.analyzers"] in your
+pyproject.toml. See docs/extending/plugin-authoring.md for details.
 """
 
 import re
 from typing import Tuple
-from .base import BaseAnalyzer
-from ..metrics.file_metrics import FileMetrics
+# When implementing a plugin, import from your mettle installation:
+# from mettle.analyzers.base import BaseAnalyzer
+# from mettle.metrics.file_metrics import FileMetrics
+
+# For reference in this example:
+try:
+    from mettle.analyzers.base import BaseAnalyzer
+    from mettle.metrics.file_metrics import FileMetrics
+except ImportError:
+    # Fallback for when running this file standalone
+    BaseAnalyzer = object  # type: ignore
+    FileMetrics = object  # type: ignore
 
 class TemplateAnalyzer(BaseAnalyzer):
     """

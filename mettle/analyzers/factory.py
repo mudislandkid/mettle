@@ -180,7 +180,7 @@ class AnalyzerFactory:
         
         for file_path in analyzers_dir.glob('*.py'):
             # Skip built-in files and non-python files
-            if file_path.stem in ['__init__', 'base', 'factory', 'template_analyzer',
+            if file_path.stem in ['__init__', 'base', 'factory',
                                   'c_style', 'cache', 'test_detection', 'python_ast']:
                 continue
                 
