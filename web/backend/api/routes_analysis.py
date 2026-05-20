@@ -380,23 +380,78 @@ async def list_analyses(
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ):
-    """List all analyses."""
+    """List analyses, newest first. Each row is enriched with aggregate
+    stats (avg_health, secrets_found, duration_seconds) computed at query
+    time from the related Project rows."""
+    from sqlalchemy import func
+
     analyses = session.exec(
         select(Analysis).order_by(Analysis.analyzed_at.desc()).offset(offset).limit(limit)
     ).all()
 
-    return [
-        AnalysisListResponse(
-            id=a.id,
-            directory_path=a.directory_path,
-            analyzed_at=a.analyzed_at,
-            status=a.status,
-            total_projects=a.total_projects,
-            total_files=a.total_files,
-            total_lines=a.total_lines,
+    if not analyses:
+        return []
+
+    analysis_ids = [a.id for a in analyses]
+
+    # Bulk aggregate: secrets sum per analysis_id
+    secrets_rows = session.exec(
+        select(Project.analysis_id, func.coalesce(func.sum(Project.secrets_found), 0))
+        .where(Project.analysis_id.in_(analysis_ids))
+        .group_by(Project.analysis_id)
+    ).all()
+    secrets_by_aid: dict[int, int] = {}
+    for row in secrets_rows:
+        aid, total = (
+            (row[0], row[1])
+            if isinstance(row, tuple) or hasattr(row, "_mapping")
+            else (row.analysis_id, row.sum)
         )
-        for a in analyses
-    ]
+        secrets_by_aid[aid] = int(total)
+
+    # Bulk fetch projects (for avg_health computation)
+    projects_rows = session.exec(select(Project).where(Project.analysis_id.in_(analysis_ids))).all()
+    projects_by_aid: dict[int, list[Project]] = {}
+    for p in projects_rows:
+        projects_by_aid.setdefault(p.analysis_id, []).append(p)
+
+    from ..services.health_score import compute_health
+
+    def _avg_health(projects: list[Project]) -> float | None:
+        if not projects:
+            return None
+        scores: list[float] = []
+        for p in projects:
+            try:
+                scores.append(compute_health(p).score)
+            except Exception:
+                continue
+        if not scores:
+            return None
+        return round(sum(scores) / len(scores), 1)
+
+    out: list[AnalysisListResponse] = []
+    for a in analyses:
+        duration: int | None = None
+        if a.completed_at is not None:
+            duration = int((a.completed_at - a.analyzed_at).total_seconds())
+        out.append(
+            AnalysisListResponse(
+                id=a.id,
+                directory_path=a.directory_path,
+                analyzed_at=a.analyzed_at,
+                status=a.status,
+                total_projects=a.total_projects,
+                total_files=a.total_files,
+                total_lines=a.total_lines,
+                completed_at=a.completed_at,
+                duration_seconds=duration,
+                avg_health=_avg_health(projects_by_aid.get(a.id, [])),
+                secrets_found=secrets_by_aid.get(a.id, 0),
+                error_message=a.error_message,
+            )
+        )
+    return out
 
 
 @router.delete("/{analysis_id}")
