@@ -365,47 +365,54 @@ def _print_diff_against_last(console: Console, directory: str, metrics_path: Pat
         )
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Code Counter - Analyze your codebase')
-    parser.add_argument('directory', nargs='?', help='Directory to analyze (optional, will prompt if not provided)')
-    parser.add_argument('-o', '--output', help='Output file path for PDF report')
-    parser.add_argument('--no-pdf', action='store_true', help='Disable PDF report generation')
-    parser.add_argument('--no-html', action='store_true', help='Disable HTML report generation')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode with additional logging')
-    parser.add_argument('--max-lines', type=int, default=0, help='Skip files with more than this many lines (0 = no limit)')
-    parser.add_argument('--exclude-types', nargs='+', help='Exclude specific file types (e.g., "Other" "Binary" "Data")')
-    parser.add_argument('--exclude-dirs', nargs='+', help='Exclude specific directories (e.g., "models" "node_modules")')
-    parser.add_argument(
-        '--compare-to-last',
-        action='store_true',
-        help='After analysis, print a diff against the most recent prior run for this directory.',
-    )
-    parser.add_argument(
-        '--check',
-        action='store_true',
-        help='Non-interactive lint-style mode. Skips prompts and PDF, exits non-zero on threshold violations.',
-    )
-    parser.add_argument(
-        '--fail-on',
-        action='append',
-        metavar='KEY=VALUE',
-        default=[],
-        help='Threshold for --check (repeatable). Keys: file-lines-over, functions-over, '
-             'cyclomatic-over, todo-density-over. Example: --fail-on file-lines-over=500',
-    )
-    parser.add_argument(
-        '--watch',
-        action='store_true',
-        help='Watch the directory and re-analyze on file changes. Requires the [watch] extra.',
-    )
-    parser.add_argument(
-        '--watch-debounce',
-        type=int,
-        default=1500,
-        help='Debounce window (ms) between bursts of file changes when --watch is on (default: 1500).',
-    )
+def main(args: argparse.Namespace | None = None) -> int:
+    """Single-project scan entry point.
 
-    args = parser.parse_args()
+    When invoked from Click (via `mettle scan ...`), `args` is the Namespace
+    constructed in `mettle.cli`. When invoked directly via `python -m
+    mettle.__main__`, `args` is None and we parse sys.argv ourselves
+    (preserves the old behaviour for tests).
+    """
+    if args is None:
+        parser = argparse.ArgumentParser(description='Mettle - Analyze your codebase')
+        parser.add_argument('directory', nargs='?', help='Directory to analyze (optional, will prompt if not provided)')
+        parser.add_argument('-o', '--output', help='Output file path for PDF report')
+        parser.add_argument('--no-pdf', action='store_true', help='Disable PDF report generation')
+        parser.add_argument('--no-html', action='store_true', help='Disable HTML report generation')
+        parser.add_argument('--debug', action='store_true', help='Enable debug mode with additional logging')
+        parser.add_argument('--max-lines', type=int, default=0, help='Skip files with more than this many lines (0 = no limit)')
+        parser.add_argument('--exclude-types', nargs='+', help='Exclude specific file types (e.g., "Other" "Binary" "Data")')
+        parser.add_argument('--exclude-dirs', nargs='+', help='Exclude specific directories (e.g., "models" "node_modules")')
+        parser.add_argument(
+            '--compare-to-last',
+            action='store_true',
+            help='After analysis, print a diff against the most recent prior run for this directory.',
+        )
+        parser.add_argument(
+            '--check',
+            action='store_true',
+            help='Non-interactive lint-style mode. Skips prompts and PDF, exits non-zero on threshold violations.',
+        )
+        parser.add_argument(
+            '--fail-on',
+            action='append',
+            metavar='KEY=VALUE',
+            default=[],
+            help='Threshold for --check (repeatable). Keys: file-lines-over, functions-over, '
+                 'cyclomatic-over, todo-density-over. Example: --fail-on file-lines-over=500',
+        )
+        parser.add_argument(
+            '--watch',
+            action='store_true',
+            help='Watch the directory and re-analyze on file changes. Requires the [watch] extra.',
+        )
+        parser.add_argument(
+            '--watch-debounce',
+            type=int,
+            default=1500,
+            help='Debounce window (ms) between bursts of file changes when --watch is on (default: 1500).',
+        )
+        args = parser.parse_args()
 
     if args.check and args.watch:
         Console().print("[red]--check and --watch are mutually exclusive.[/red]")
@@ -526,5 +533,9 @@ def main():
             console.print(traceback.format_exc())
         sys.exit(1)
 
+    return 0
+
+
 if __name__ == '__main__':
-    main() 
+    from .cli import cli
+    cli() 
