@@ -2,6 +2,7 @@
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { computed } from 'vue'
 import { useTheme } from '@/composables/useTheme'
+import TokenPrompt from './components/TokenPrompt.vue'
 
 const route = useRoute()
 const { theme, toggle: toggleTheme } = useTheme()
@@ -10,6 +11,7 @@ const isActive = (path: string) => computed(() => route.path === path)
 </script>
 
 <template>
+  <TokenPrompt />
   <div class="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
     <!-- Header -->
     <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50">
