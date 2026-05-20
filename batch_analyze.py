@@ -536,59 +536,65 @@ def generate_json_report(summaries: list[ProjectSummary], output_path: Path):
     output_path.write_text(json.dumps(data, indent=2))
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Analyze all project folders within a directory"
-    )
-    parser.add_argument(
-        "directory",
-        type=str,
-        help="Parent directory containing project folders to analyze"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        type=str,
-        help="Output markdown report file path"
-    )
-    parser.add_argument(
-        "--json", "-j",
-        type=str,
-        help="Output JSON report file path"
-    )
-    parser.add_argument(
-        "--all", "-a",
-        action="store_true",
-        help="Analyze all subdirectories (not just detected projects)"
-    )
-    parser.add_argument(
-        "--depth", "-d",
-        type=int,
-        default=1,
-        help="Directory depth to search for projects (default: 1, recommended to keep at 1)"
-    )
-    parser.add_argument(
-        "--include-internal",
-        action="store_true",
-        help="Include common internal folder names (src, lib, frontend, backend, etc.)"
-    )
-    parser.add_argument(
-        "--github-user", "-u",
-        type=str,
-        help="Only include projects owned by this GitHub/GitLab username"
-    )
-    parser.add_argument(
-        "--skip-public-sdks",
-        action="store_true",
-        help="Skip known public SDKs (esp-idf, tensorflow, etc.)"
-    )
-    parser.add_argument(
-        "--max-files",
-        type=int,
-        default=0,
-        help="Skip projects with more than this many files (0 = no limit, helps filter vendored SDKs)"
-    )
+def main(args: argparse.Namespace | None = None) -> int:
+    """Batch analyse projects under a parent directory.
 
-    args = parser.parse_args()
+    When invoked from Click (via ``mettle batch ...``), *args* is the Namespace
+    constructed in ``mettle.cli``. When invoked directly
+    (``python batch_analyze.py``), *args* is None and we parse sys.argv.
+    """
+    if args is None:
+        parser = argparse.ArgumentParser(
+            description="Analyze all project folders within a directory"
+        )
+        parser.add_argument(
+            "directory",
+            type=str,
+            help="Parent directory containing project folders to analyze"
+        )
+        parser.add_argument(
+            "--output", "-o",
+            type=str,
+            help="Output markdown report file path"
+        )
+        parser.add_argument(
+            "--json", "-j",
+            type=str,
+            help="Output JSON report file path"
+        )
+        parser.add_argument(
+            "--all", "-a",
+            action="store_true",
+            help="Analyze all subdirectories (not just detected projects)"
+        )
+        parser.add_argument(
+            "--depth", "-d",
+            type=int,
+            default=1,
+            help="Directory depth to search for projects (default: 1, recommended to keep at 1)"
+        )
+        parser.add_argument(
+            "--include-internal",
+            action="store_true",
+            help="Include common internal folder names (src, lib, frontend, backend, etc.)"
+        )
+        parser.add_argument(
+            "--github-user", "-u",
+            type=str,
+            help="Only include projects owned by this GitHub/GitLab username"
+        )
+        parser.add_argument(
+            "--skip-public-sdks",
+            action="store_true",
+            help="Skip known public SDKs (esp-idf, tensorflow, etc.)"
+        )
+        parser.add_argument(
+            "--max-files",
+            type=int,
+            default=0,
+            help="Skip projects with more than this many files (0 = no limit, helps filter vendored SDKs)"
+        )
+        args = parser.parse_args()
 
     console = Console()
     parent_dir = Path(args.directory).resolve()
@@ -699,6 +705,8 @@ def main():
         json_path = Path(args.json)
         generate_json_report(summaries, json_path)
         console.print(f"[green]JSON report saved to:[/green] {json_path}")
+
+    return 0
 
 
 if __name__ == "__main__":
