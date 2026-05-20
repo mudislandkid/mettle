@@ -1,28 +1,13 @@
 """Git repository analysis service for commit history and statistics."""
 
-import os
 import re
-import subprocess
 import threading
 import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-# Disable git's system/global config so a malicious `.git/config` inside a
-# scanned repo can't trigger code execution via core.fsmonitor / core.sshCommand
-# / core.pager / etc. We also turn off the optional locks to avoid races when
-# scanning read-only mirrors.
-_SAFE_GIT_ENV = {
-    "GIT_CONFIG_NOSYSTEM": "1",
-    "GIT_CONFIG_GLOBAL": "/dev/null",
-    "GIT_TERMINAL_PROMPT": "0",
-    "GIT_OPTIONAL_LOCKS": "0",
-    # PATH still needs to be present so git itself resolves.
-    "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
-    "HOME": "/dev/null",
-}
-
+from .git_safe import GitTimeoutError, run_git
 
 # Simple TTL cache for get_commit_history. lru_cache had no TTL despite the
 # docstring claim, and the cache grew per distinct path forever.
@@ -61,26 +46,25 @@ class GitAnalyzerService:
 
     @staticmethod
     def _execute_git_command(path: str, args: list[str], timeout: int = 30) -> str | None:
-        """Execute a git command in a sandboxed env with a timeout."""
+        """Execute a git command in a sandboxed env with a timeout.
+
+        Backwards-compatible thin wrapper around git_safe.run_git. The `timeout`
+        argument is ignored — git_safe enforces a single project-wide value
+        (GIT_TIMEOUT_SECONDS = 30). Returns stdout on success, None on non-zero
+        exit, None on timeout.
+        """
         try:
-            result = subprocess.run(
-                ["git", "-C", path, "--no-pager"] + args,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=True,
-                env=_SAFE_GIT_ENV,
-            )
-            return result.stdout.strip()
-        except subprocess.TimeoutExpired:
-            print(f"Git command timed out: {' '.join(args)}")
-            return None
-        except subprocess.CalledProcessError as e:
-            print(f"Git command failed: {e.stderr}")
+            result = run_git(["-C", path, *args], cwd=path)
+        except GitTimeoutError as exc:
+            print(f"Git command timed out: {exc}")
             return None
         except Exception as e:
             print(f"Error executing git command: {str(e)}")
             return None
+        if result.returncode != 0:
+            print(f"Git command failed: {result.stderr.strip()}")
+            return None
+        return result.stdout.strip()
 
     @classmethod
     def get_repository_metadata(cls, path: str) -> dict:
