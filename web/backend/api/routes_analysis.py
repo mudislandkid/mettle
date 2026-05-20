@@ -402,7 +402,13 @@ async def delete_analysis(analysis_id: int, session: Session = Depends(get_sessi
 @router.websocket("/ws/{analysis_id}")
 async def websocket_progress(websocket: WebSocket, analysis_id: int):
     """WebSocket endpoint for real-time progress updates."""
-    await websocket.accept()
+    from web.backend.security import settings
+    from web.backend.security.auth import authorize_websocket
+
+    subprotocol = await authorize_websocket(websocket)
+    if settings.token() is not None and subprotocol is None:
+        return  # close() already called inside authorize_websocket
+    await websocket.accept(subprotocol=subprotocol)
 
     with _connections_lock:
         active_connections.setdefault(analysis_id, []).append(websocket)

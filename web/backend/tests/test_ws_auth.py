@@ -66,3 +66,23 @@ def test_correct_token_accepted_echoes_subprotocol(security_env):
     client = TestClient(_app_with_ws_auth())
     with client.websocket_connect("/ws/echo", subprotocols=["mettle.bearer", "abc"]) as ws:
         assert ws.receive_text() == "hi"
+
+
+def test_real_ws_endpoint_requires_subprotocol_when_token_set(security_env, monkeypatch):
+    """The real /ws/{analysis_id} route, not a contrived one."""
+    # Set env BEFORE importing the app, then re-import to pick up the middleware config.
+    security_env(TOKEN="abc", CORS_ORIGINS="http://testserver")
+    # Force a fresh import so the middleware reads the new env value.
+    import importlib
+
+    from web.backend import main as backend_main
+
+    importlib.reload(backend_main)
+
+    client = TestClient(backend_main.app)
+    with pytest.raises(WebSocketDisconnect) as exc:
+        with client.websocket_connect(
+            "/api/analysis/ws/1"
+        ):  # any int id; auth runs before the body
+            pass
+    assert exc.value.code == 1008
