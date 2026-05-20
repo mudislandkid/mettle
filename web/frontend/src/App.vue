@@ -19,7 +19,7 @@ const isActive = (path: string) => computed(() => route.path === path)
             <svg class="w-8 h-8 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
             </svg>
-            <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">CodeCounter</h1>
+            <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">Mettle</h1>
           </div>
           <nav class="flex items-center gap-2">
             <RouterLink

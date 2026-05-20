@@ -1,6 +1,6 @@
 {
-  "name": "codecounter-web",
-  "version": "1.0.0",
+  "name": "mettle-web",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
