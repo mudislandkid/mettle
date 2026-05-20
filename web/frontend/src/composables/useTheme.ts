@@ -2,7 +2,7 @@ import { onMounted, ref, watch } from 'vue'
 
 export type Theme = 'light' | 'dark'
 
-const STORAGE_KEY = 'code-counter-theme'
+const STORAGE_KEY = 'mettle-theme'
 
 // Module-level so every call to `useTheme()` shares the same source of truth.
 const current = ref<Theme>(initialTheme())
