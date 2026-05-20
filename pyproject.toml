@@ -102,3 +102,4 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["mettle/tests", "web/backend/tests"]
 python_files = ["test_*.py"]
+pythonpath = ["."]
