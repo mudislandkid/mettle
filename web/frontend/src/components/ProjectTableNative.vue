@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { FlagType, Project, Tag } from '@/types'
+import type { FlagType, Project, Tag, SecretMatch } from '@/types'
 import { bulkUpdateFlags, bulkUpdateTag, getFlagTypes, listTags } from '@/api/projects'
+import SecretsBadge from './SecretsBadge.vue'
+import LicenseBadge from './LicenseBadge.vue'
+import SecretsDrawer from './SecretsDrawer.vue'
 
 const router = useRouter()
 
@@ -245,6 +248,22 @@ function healthColorClass(score: number): string {
   if (score >= 20) return 'bg-orange-100 text-orange-700'
   return 'bg-red-100 text-red-700'
 }
+
+// Secrets drawer state
+const drawerOpen = ref(false)
+const drawerProject = ref<{ name: string; matches: SecretMatch[] } | null>(null)
+
+function openSecretsDrawer(project: Project) {
+  drawerProject.value = {
+    name: project.name,
+    matches: project.secrets_detail ?? [],
+  }
+  drawerOpen.value = true
+}
+
+function closeSecretsDrawer() {
+  drawerOpen.value = false
+}
 </script>
 
 <template>
@@ -464,6 +483,12 @@ function healthColorClass(score: number): string {
               </div>
             </th>
             <th class="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider dark:text-slate-300">
+              Secrets
+            </th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider dark:text-slate-300">
+              License
+            </th>
+            <th class="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider dark:text-slate-300">
               Languages
             </th>
           </tr>
@@ -520,6 +545,16 @@ function healthColorClass(score: number): string {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
               {{ formatNumber(project.classes) }}
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm" @click.stop>
+              <SecretsBadge
+                :count="project.secrets_found ?? 0"
+                :detail="project.secrets_detail ?? null"
+                @open="openSecretsDrawer(project)"
+              />
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <LicenseBadge :spdx="project.license_spdx ?? null" />
+            </td>
             <td class="px-6 py-4 text-sm text-slate-600 max-w-xs truncate dark:text-slate-400">
               {{ project.languages.slice(0, 3).join(', ') }}{{ project.languages.length > 3 ? '...' : '' }}
             </td>
@@ -569,5 +604,13 @@ function healthColorClass(score: number): string {
         </div>
       </div>
     </div>
+
+    <SecretsDrawer
+      v-if="drawerProject"
+      :open="drawerOpen"
+      :project-name="drawerProject.name"
+      :matches="drawerProject.matches"
+      @close="closeSecretsDrawer"
+    />
   </div>
 </template>
