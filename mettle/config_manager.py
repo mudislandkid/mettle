@@ -13,9 +13,9 @@ class ConfigManager:
     - Validating configuration values
     
     Configuration is loaded from the following locations in order of precedence:
-    1. Current directory (.code_counter.yaml or .code_counter.yml)
+    1. Current directory (.mettle.yaml or .mettle.yml)
     2. Package directory (config.yaml)
-    3. User home directory (~/.code_counter.yaml or ~/.code_counter.yml)
+    3. User home directory (~/.mettle.yaml or ~/.mettle.yml)
     """
     
     def __init__(self):
@@ -28,8 +28,8 @@ class ConfigManager:
         paths = []
         
         # Current directory
-        paths.append(Path.cwd() / '.code_counter.yaml')
-        paths.append(Path.cwd() / '.code_counter.yml')
+        paths.append(Path.cwd() / '.mettle.yaml')
+        paths.append(Path.cwd() / '.mettle.yml')
         
         # Package directory
         package_dir = Path(__file__).parent
@@ -37,8 +37,8 @@ class ConfigManager:
         
         # User home directory
         home = Path.home()
-        paths.append(home / '.code_counter.yaml')
-        paths.append(home / '.code_counter.yml')
+        paths.append(home / '.mettle.yaml')
+        paths.append(home / '.mettle.yml')
         
         return paths
     
@@ -51,7 +51,7 @@ class ConfigManager:
                 loaded = yaml.safe_load(path.read_text()) or {}
             except yaml.YAMLError as exc:
                 # Don't silently fall through — surface which file is broken
-                # so a typo in ~/.code_counter.yaml is noticeable.
+                # so a typo in ~/.mettle.yaml is noticeable.
                 import sys
                 print(f"[mettle] warning: failed to parse {path}: {exc}", file=sys.stderr)
                 continue
