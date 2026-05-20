@@ -240,5 +240,89 @@ def web(
     _sys.exit(_web_run.main(ns) or 0)
 
 
+@cli.command()
+@click.option("--since", default="7d", help="Time window (e.g. 1d, 7d, 30d, 2w, 1m). Default: 7d.")
+@click.option(
+    "--top", "top_n", type=int, default=5, help="Max entries per delta section. Default: 5."
+)
+@click.option(
+    "--stale-days",
+    type=int,
+    default=30,
+    help="Days with no commits to count as stale. Default: 30.",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["md", "json"]),
+    default="md",
+    help="Output format. Default: md (Markdown).",
+)
+@click.option(
+    "-o",
+    "--out",
+    type=click.Path(dir_okay=False, writable=True, allow_dash=True),
+    default="-",
+    help="Output file. Use '-' for stdout (default).",
+)
+def digest(since: str, top_n: int, stale_days: int, fmt: str, out: str) -> None:
+    """Produce a cross-project digest from existing analyses."""
+    import json as _json
+    import sys as _sys
+
+    from sqlmodel import Session
+
+    from mettle.digest import compute_digest, render_json, render_markdown
+    from web.backend.database.connection import engine
+
+    window_days = _parse_window_cli(since)
+
+    with Session(engine) as session:
+        report = compute_digest(
+            session,
+            window_days=window_days,
+            stale_days=stale_days,
+            top_n=top_n,
+        )
+
+    if report.total_projects == 0:
+        click.echo(
+            "No completed analyses found in the database.\n"
+            "Run `mettle batch <dir>` first to populate it, then re-run `mettle digest`.",
+            err=True,
+        )
+        _sys.exit(1)
+
+    rendered = (
+        render_markdown(report) if fmt == "md" else _json.dumps(render_json(report), indent=2)
+    )
+
+    if out == "-":
+        click.echo(rendered)
+    else:
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write(rendered)
+            if not rendered.endswith("\n"):
+                fh.write("\n")
+        click.echo(f"Wrote digest to {out}", err=True)
+
+
+def _parse_window_cli(spec: str) -> int:
+    """CLI window parser. Raises Click error on malformed input."""
+    spec = spec.strip().lower()
+    if spec.isdigit():
+        return int(spec)
+    if spec.endswith("d") and spec[:-1].isdigit():
+        return int(spec[:-1])
+    if spec.endswith("w") and spec[:-1].isdigit():
+        return int(spec[:-1]) * 7
+    if spec.endswith("m") and spec[:-1].isdigit():
+        return int(spec[:-1]) * 30
+    raise click.BadParameter(
+        f"Cannot parse window {spec!r}. Use e.g. '7d', '2w', '1m', or bare days.",
+        param_hint="--since",
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover
     cli()
