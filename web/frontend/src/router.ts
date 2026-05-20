@@ -28,6 +28,11 @@ const router = createRouter({
       name: 'project-compare',
       component: () => import('./views/ProjectCompareView.vue'),
     },
+    {
+      path: '/digest',
+      name: 'digest',
+      component: () => import('./views/DigestView.vue'),
+    },
   ],
 })
 

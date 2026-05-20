@@ -42,6 +42,15 @@ const isActive = (path: string) => computed(() => route.path === path)
             >
               History
             </RouterLink>
+            <RouterLink
+              to="/digest"
+              class="px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              :class="isActive('/digest').value
+                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-100 dark:hover:bg-slate-800'"
+            >
+              Digest
+            </RouterLink>
             <button
               @click="toggleTheme"
               :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
