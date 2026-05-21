@@ -324,6 +324,30 @@ class TestGoMod(unittest.TestCase):
         self.assertEqual(by_name["github.com/baz/qux"], "v0.1.0")
 
 
+class TestGoWorkspaces(unittest.TestCase):
+    def test_go_work_recurses_into_modules(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "go.work").write_text(
+                "go 1.22\n\nuse (\n\t./module-a\n\t./module-b  // commented\n)\nuse ./module-c\n"
+            )
+            for mod, dep in [
+                ("module-a", "github.com/a/foo"),
+                ("module-b", "github.com/b/bar"),
+                ("module-c", "github.com/c/baz"),
+            ]:
+                (root / mod).mkdir()
+                (root / mod / "go.mod").write_text(
+                    f"module example.com/{mod}\ngo 1.22\nrequire {dep} v1.0.0\n"
+                )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "go"}
+            self.assertEqual(
+                names,
+                {"github.com/a/foo", "github.com/b/bar", "github.com/c/baz"},
+            )
+
+
 class TestComposer(unittest.TestCase):
     def test_skips_php_itself(self):
         content = '{"require": {"php": ">=8.2", "monolog/monolog": "^3.0"}}'

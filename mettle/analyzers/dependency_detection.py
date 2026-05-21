@@ -462,6 +462,36 @@ def cargo_workspace_members(content: str) -> list[str]:
 _GO_REQUIRE_LINE = re.compile(r"^\s*(\S+)\s+(v\S+)\s*(?://.*)?$")
 
 
+def go_workspace_uses(content: str) -> list[str]:
+    """Parse a go.work file and return the directories listed under `use`.
+
+    Handles both `use ./path` single-line form and `use (\\n  ./a\\n  ./b\\n)`
+    block form, plus trailing `// comment` annotations and blank lines.
+    """
+    out: list[str] = []
+    in_block = False
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("//"):
+            continue
+        if line.startswith("use ("):
+            in_block = True
+            continue
+        if in_block:
+            if line.startswith(")"):
+                in_block = False
+                continue
+            path = line.split("//", 1)[0].strip()
+            if path:
+                out.append(path)
+            continue
+        if line.startswith("use "):
+            after = line[len("use ") :].split("//", 1)[0].strip()
+            if after and not after.startswith("("):
+                out.append(after)
+    return out
+
+
 def parse_go_mod(content: str) -> list[dict]:
     out: list[dict] = []
     in_require_block = False
@@ -616,6 +646,20 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
             continue
         if _absorb(parse_package_json(content)):
             return collected
+
+    # Go workspaces: `go.work` lists `use ./module-a` paths to nested modules.
+    go_work_path = root / "go.work"
+    if go_work_path.is_file():
+        go_work_content = _safe_read(go_work_path)
+        if go_work_content is not None:
+            uses = go_workspace_uses(go_work_content)
+            go_members = _resolve_workspace_manifests(root, uses, "go.mod")
+            for member_path in go_members:
+                content = _safe_read(member_path)
+                if content is None:
+                    continue
+                if _absorb(parse_go_mod(content)):
+                    return collected
 
     # uv workspaces: recurse into each declared member pyproject.toml.
     if pyproject_root_content is not None:
