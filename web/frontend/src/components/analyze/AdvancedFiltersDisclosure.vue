@@ -121,7 +121,7 @@ function maxFilesLabel(v: number): string {
       >
         <div class="min-w-0">
           <div class="text-[13px] font-medium text-slate-200">Include internal folders</div>
-          <div class="text-[11px] text-slate-500 mt-0.5 leading-snug">Scan .venv / node_modules / .next style dirs</div>
+          <div class="text-[11px] text-slate-500 mt-0.5 leading-snug">Treat <code class="text-slate-400">src</code> / <code class="text-slate-400">tests</code> / <code class="text-slate-400">scripts</code> / <code class="text-slate-400">api</code> / <code class="text-slate-400">web</code> dirs as projects. Build artefacts (<code class="text-slate-400">node_modules</code>, <code class="text-slate-400">.venv</code>, <code class="text-slate-400">dist</code>) stay skipped either way.</div>
         </div>
         <span :class="['shrink-0 mt-0.5 inline-flex w-9 h-5 rounded-full p-0.5 transition-colors', modelValue.include_internal ? 'bg-indigo-500' : 'bg-slate-700']">
           <span :class="['block w-4 h-4 rounded-full bg-white shadow transition-transform', modelValue.include_internal ? 'translate-x-4' : '']"/>
