@@ -196,6 +196,8 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
                     interfaces=result.get("interfaces", 0),
                     type_aliases=result.get("type_aliases", 0),
                     enums=result.get("enums", 0),
+                    markdown_files=result.get("markdown_files", 0),
+                    markdown_lines=result.get("markdown_lines", 0),
                     secrets_found=result.get("secrets_found", 0),
                     secrets_detail=result.get("secrets_detail"),
                     license_spdx=result.get("license_spdx"),
@@ -343,6 +345,9 @@ async def get_analysis(analysis_id: int, session: Session = Depends(get_session)
 
     project_responses = [get_project_response(p, session) for p in projects]
 
+    total_markdown_files = sum(p.markdown_files or 0 for p in projects)
+    total_markdown_lines = sum(p.markdown_lines or 0 for p in projects)
+
     return AnalysisResponse(
         id=analysis.id,
         directory_path=analysis.directory_path,
@@ -354,6 +359,8 @@ async def get_analysis(analysis_id: int, session: Session = Depends(get_session)
         total_code_lines=analysis.total_code_lines,
         total_functions=analysis.total_functions,
         total_classes=analysis.total_classes,
+        total_markdown_files=total_markdown_files,
+        total_markdown_lines=total_markdown_lines,
         filters_applied=analysis.filters_applied,
         error_message=analysis.error_message,
         projects=project_responses,

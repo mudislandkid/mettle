@@ -36,6 +36,21 @@ const segs = computed(() => [
   { k: 'blank',    n: totalBlankLines.value,    tone: 'slate' as const,  label: 'Blank' },
 ])
 
+// Markdown totals — fall back to summing projects when the analysis-level
+// aggregate is missing (older analyses without markdown_files/lines fields).
+const totalMarkdownFiles = computed(() => {
+  if (typeof props.analysis.total_markdown_files === 'number') {
+    return props.analysis.total_markdown_files
+  }
+  return props.analysis.projects.reduce((s, p) => s + (p.markdown_files ?? 0), 0)
+})
+const totalMarkdownLines = computed(() => {
+  if (typeof props.analysis.total_markdown_lines === 'number') {
+    return props.analysis.total_markdown_lines
+  }
+  return props.analysis.projects.reduce((s, p) => s + (p.markdown_lines ?? 0), 0)
+})
+
 // Risk strip — derived from projects
 const staleCount = computed(() =>
   props.analysis.projects.filter((p) => {
@@ -75,7 +90,7 @@ const pct = (n: number) =>
     <div class="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-0">
 
       <!-- Left: number tiles -->
-      <div class="p-5 sm:p-6 grid grid-cols-3 gap-x-6 gap-y-4">
+      <div class="p-5 sm:p-6 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
         <!-- Projects -->
         <div>
           <div class="text-[28px] font-semibold tabular-nums leading-none text-slate-100">
@@ -90,12 +105,19 @@ const pct = (n: number) =>
           </div>
           <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">Files</div>
         </div>
-        <!-- Lines -->
+        <!-- Total Lines -->
         <div>
           <div class="text-[28px] font-semibold tabular-nums leading-none text-slate-100">
             {{ fmtNum(analysis.total_lines) }}
           </div>
-          <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">Lines</div>
+          <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">Total lines</div>
+        </div>
+        <!-- LOC (lines of code) -->
+        <div>
+          <div class="text-[28px] font-semibold tabular-nums leading-none text-indigo-300">
+            {{ fmtNum(analysis.total_code_lines) }}
+          </div>
+          <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">LOC</div>
         </div>
         <!-- Functions -->
         <div>
@@ -112,7 +134,7 @@ const pct = (n: number) =>
           <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">Classes</div>
         </div>
         <!-- Avg Health -->
-        <div>
+        <div class="col-span-2">
           <div class="text-[28px] font-semibold tabular-nums leading-none">
             <span class="flex items-baseline gap-1.5">
               <span :class="TONE[hb.tone].text">{{ avgHealth }}</span>
@@ -149,6 +171,27 @@ const pct = (n: number) =>
                 <div class="text-[10px] uppercase tracking-[0.08em] text-slate-500">
                   {{ s.label }} · {{ pct(s.n) }}%
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Markdown subset (informational; already counted above) -->
+          <div
+            v-if="totalMarkdownFiles > 0 || totalMarkdownLines > 0"
+            class="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between gap-3"
+          >
+            <div class="flex items-baseline gap-2">
+              <span class="w-1.5 h-3 rounded-sm bg-violet-500/70" aria-hidden="true" />
+              <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">Markdown</span>
+            </div>
+            <div class="flex items-baseline gap-4 leading-tight">
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-[13px] tabular-nums text-slate-100 font-medium">{{ fmtNumExact(totalMarkdownFiles) }}</span>
+                <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">files</span>
+              </div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-[13px] tabular-nums text-slate-100 font-medium">{{ fmtNumExact(totalMarkdownLines) }}</span>
+                <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">lines</span>
               </div>
             </div>
           </div>

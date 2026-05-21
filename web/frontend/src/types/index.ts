@@ -55,6 +55,8 @@ export interface Project {
   interfaces: number
   type_aliases: number
   enums: number
+  markdown_files: number
+  markdown_lines: number
   notes: string
   flags: string[]
   tags: Tag[]
@@ -205,6 +207,8 @@ export interface Analysis {
   total_code_lines: number
   total_functions: number
   total_classes: number
+  total_markdown_files?: number
+  total_markdown_lines?: number
   filters_applied: AnalysisFilters | null
   error_message: string | null
   projects: Project[]

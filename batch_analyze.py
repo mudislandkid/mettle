@@ -106,6 +106,9 @@ class ProjectSummary:
     interfaces: int = 0
     type_aliases: int = 0
     enums: int = 0
+    # Markdown-specific totals (subset of total_files / total_lines)
+    markdown_files: int = 0
+    markdown_lines: int = 0
     # Phase C — scanner output
     secrets_found: int = 0
     secrets_detail: list | None = None
@@ -474,6 +477,11 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> ProjectSummar
         total_files = metrics["total_files"]
         avg_lines = total_lines / total_files if total_files > 0 else 0
 
+        md_metrics = metrics["metrics_by_language"].get("Markdown")
+        md_stats = metrics.get("language_stats", {}).get("Markdown") or {}
+        markdown_lines = md_metrics.total_lines if md_metrics else 0
+        markdown_files = int(md_stats.get("total_files", 0))
+
         git_meta = get_git_metadata(project_path)
         deps = detect_dependencies(project_path)
 
@@ -514,6 +522,8 @@ def analyze_project(project_path: Path, analyzer: CodeAnalyzer) -> ProjectSummar
             interfaces=interfaces,
             type_aliases=type_aliases,
             enums=enums,
+            markdown_files=markdown_files,
+            markdown_lines=markdown_lines,
             secrets_found=len(secret_findings),
             secrets_detail=secrets_detail,
             license_spdx=license_spdx,

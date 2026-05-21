@@ -91,6 +91,9 @@ class ProjectResponse(BaseModel):
     interfaces: int = 0
     type_aliases: int = 0
     enums: int = 0
+    # Markdown-specific aggregates (subset of total_files / total_lines)
+    markdown_files: int = 0
+    markdown_lines: int = 0
     # Phase C — scanner output
     secrets_found: int = 0
     secrets_detail: list[dict] | None = None
@@ -249,6 +252,8 @@ class AnalysisResponse(BaseModel):
     total_code_lines: int
     total_functions: int
     total_classes: int
+    total_markdown_files: int = 0
+    total_markdown_lines: int = 0
     filters_applied: dict | None = None
     error_message: str | None = None
     projects: list[ProjectResponse] = []
