@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { TONE } from '@/lib/tone'
 import type { Project } from '@/types'
 import ProjectTableRow from './ProjectTableRow.vue'
@@ -7,6 +8,8 @@ import ProjectTableRow from './ProjectTableRow.vue'
 const props = defineProps<{
   projects: Project[]
 }>()
+
+const router = useRouter()
 
 // ─── State ─────────────────────────────────────────────────────────────────
 const search      = ref('')
@@ -40,6 +43,15 @@ function toggleSelect(id: number) {
   if (next.has(id)) next.delete(id)
   else next.add(id)
   selected.value = next
+}
+
+function handleRowClick(event: MouseEvent, project: Project) {
+  // Cmd/Ctrl-click multi-selects instead of opening (matches the footer hint).
+  if (event.metaKey || event.ctrlKey) {
+    toggleSelect(project.id)
+    return
+  }
+  router.push({ name: 'project-detail', params: { id: project.id } })
 }
 
 // ─── Derived ───────────────────────────────────────────────────────────────
@@ -291,6 +303,7 @@ function clearFilters() {
             :max-lines="maxLines"
             :selected="selected.has(p.id)"
             @toggle-select="toggleSelect(p.id)"
+            @open="(e: MouseEvent) => handleRowClick(e, p)"
           />
           <tr v-if="filtered.length === 0">
             <td colspan="8" class="px-5 py-12 text-center">

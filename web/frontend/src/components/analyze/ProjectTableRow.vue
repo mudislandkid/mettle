@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'toggle-select'): void
+  (e: 'open', event: MouseEvent): void
 }>()
 
 function activityDate(iso: string | null | undefined): string {
@@ -26,6 +27,7 @@ function activityDate(iso: string | null | undefined): string {
   <tr
     class="border-t border-slate-800/70 group transition-colors cursor-pointer"
     :class="selected ? 'bg-indigo-500/10' : 'hover:bg-slate-800/40'"
+    @click="(e: MouseEvent) => emit('open', e)"
   >
     <!-- Checkbox -->
     <td class="px-4 py-3 align-middle" @click.stop="emit('toggle-select')">
@@ -41,11 +43,9 @@ function activityDate(iso: string | null | undefined): string {
     <!-- Project name + path + langs -->
     <td class="px-3 py-3 align-middle min-w-[260px]">
       <div class="flex items-center gap-2">
-        <a
-          :href="`/projects/${project.id}`"
-          @click.prevent
+        <span
           class="text-[14px] font-semibold text-slate-100 group-hover:text-indigo-200 truncate"
-        >{{ project.name }}</a>
+        >{{ project.name }}</span>
         <span
           v-if="project.flags?.includes('archived')"
           class="text-[9.5px] uppercase tracking-[0.12em] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 ring-1 ring-inset ring-slate-700"
