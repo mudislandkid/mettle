@@ -173,3 +173,29 @@ Tailwind theme toggle, persisted in `localStorage`.
 - **#15 Entry-point analyzer plugins.** `AnalyzerFactory._discover_entry_point_plugins()` reads `importlib.metadata.entry_points(group="code_counter.analyzers")` and loads anything that resolves to a `BaseAnalyzer` subclass with `LANGUAGE: str` and `EXTENSIONS: Iterable[str]` class attributes. Extensions are normalised (lower-cased, dot-prefixed). Plugins override built-in / cached registrations for the same language; one bad plugin (import error, wrong base class, missing metadata) is logged-and-skipped, never fatal. Entry-point plugins are excluded from the JSON cache file so they're re-resolved each run from installed package metadata — `pip uninstall` cleanly removes the registration. Plugin contract documented in `code_counter/analyzers/README.md`. 7 unit tests in `test_entry_point_plugins.py`.
 
 **All Tier 3 polish items complete. Backlog clean.**
+
+---
+
+## Proposed (post-v1)
+
+New items captured after the initial backlog was cleared. Status `proposed` until scheduled.
+
+| # | Title | Type | Effort | Status |
+|---|-------|------|--------|--------|
+| 24 | Dependency license compliance | Feature | L | **proposed** |
+| 25 | Proprietary-project flag (suppress missing-license risk) | Feature | S | **proposed** |
+
+### 24. Dependency license compliance
+**Why:** The current license detector only answers "did *this* repo declare its own license?" — it says nothing about whether the FOSS dependencies you've pulled in are compatible with how you're shipping. Real-world risk: shipping AGPL code from a transitive dep inside a proprietary product, or missing required NOTICES/attribution.
+
+**Sketch:** Walk each detected dependency manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `go.mod`, `composer.json`) and resolve each name → SPDX license via the registry's metadata API (npm registry, PyPI JSON API, crates.io, etc.). Cache results in SQLite keyed by `(manager, name, version)` since they're effectively immutable. Persist per-project: list of `(name, version, license, source)` and an aggregate "license bill of materials." Risk signal: dependencies with copyleft licenses (GPL family) when the project itself is declared proprietary, or unknown/unresolvable licenses. Optional: generate a NOTICES.md attribution file. Heavy lift — network fetches, rate limits, cache invalidation. Probably v2 territory.
+
+### 25. Proprietary-project flag
+**Why:** Closed-source projects often have no LICENSE file by design (default copyright is what you want for proprietary code), but Mettle currently flags them as "Missing license" and dings the health score. False positive for the entire proprietary-project case.
+
+**Sketch:** Add `proprietary` to the existing flag enum (alongside `archived`, `wip`, `production`, etc.) so it persists per-project path across re-analyses. When set:
+- The "Missing license" risk signal excludes that project from its count.
+- The health score's license component scores it as satisfied.
+- License column in the project table shows "Proprietary" instead of "—".
+
+Bulk-flag UI already exists, so marking 18 gentlewatch sub-repos at once is one click. Suggested companion: a tooltip on the "Missing license" badge explaining that `proprietary` is a valid alternative to dropping an SPDX LICENSE file.
