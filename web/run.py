@@ -74,14 +74,21 @@ def start_backend(host: str, port: int, reload: bool) -> subprocess.Popen:
     label = "with --reload" if reload else "single-process"
     log(f"Starting backend server on http://{host}:{port} ({label})", Colors.BLUE)
 
+    repo_root = WEB_DIR.parent
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(WEB_DIR.parent)
+    env["PYTHONPATH"] = str(repo_root)
 
+    # Launch uvicorn from the repo root so the app loads as `web.backend.main`
+    # — matching the absolute import path used elsewhere (mettle.digest,
+    # mettle.cli, the test suite). Loading it as bare `backend.main` would
+    # cause SQLModel classes to register twice when mettle.digest re-imports
+    # them via `web.backend.database.models`, tripping SQLAlchemy's
+    # "Table 'analyses' already defined" guard.
     cmd = [
         sys.executable,
         "-m",
         "uvicorn",
-        "backend.main:app",
+        "web.backend.main:app",
         "--host",
         host,
         "--port",
@@ -93,7 +100,7 @@ def start_backend(host: str, port: int, reload: bool) -> subprocess.Popen:
         # Stay in a single worker so an in-memory websocket map stays consistent.
         cmd.extend(["--workers", "1"])
 
-    return subprocess.Popen(cmd, cwd=WEB_DIR, env=env)
+    return subprocess.Popen(cmd, cwd=repo_root, env=env)
 
 
 def start_frontend(port: int) -> subprocess.Popen:
