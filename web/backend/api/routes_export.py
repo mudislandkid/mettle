@@ -32,7 +32,7 @@ from ..services.analyzer_service import validate_directory
 router = APIRouter()
 
 
-@router.get("/markdown/{analysis_id}")
+@router.get("/export/markdown/{analysis_id}")
 async def export_markdown(analysis_id: int, session: Session = Depends(get_session)):
     """Export analysis as Markdown."""
     analysis = session.get(Analysis, analysis_id)
@@ -105,7 +105,7 @@ async def export_markdown(analysis_id: int, session: Session = Depends(get_sessi
     )
 
 
-@router.get("/json/{analysis_id}")
+@router.get("/export/json/{analysis_id}")
 async def export_json(analysis_id: int, session: Session = Depends(get_session)):
     """Export analysis as JSON."""
     analysis = session.get(Analysis, analysis_id)
@@ -169,7 +169,7 @@ async def export_json(analysis_id: int, session: Session = Depends(get_session))
     )
 
 
-@router.get("/csv/{analysis_id}")
+@router.get("/export/csv/{analysis_id}")
 async def export_csv(analysis_id: int, session: Session = Depends(get_session)):
     """Export analysis as CSV."""
     analysis = session.get(Analysis, analysis_id)
