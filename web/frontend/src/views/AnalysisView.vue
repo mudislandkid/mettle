@@ -47,6 +47,16 @@ function handleRestart() {
   activeDirectoryPath.value = ''
 }
 
+async function handleReanalyze() {
+  const current = currentAnalysis.value
+  if (!current) return
+  const directory = current.directory_path
+  const filters = (current.filters_applied ?? undefined) as AnalysisFilters | undefined
+  activeDirectoryPath.value = directory
+  clearAnalysis()
+  await startAnalysis(directory, filters)
+}
+
 async function handleOpenAnalysis(id: number) {
   await fetchAnalysis(id)
 }
@@ -80,6 +90,7 @@ onMounted(async () => {
       v-else-if="viewState === 'results' && currentAnalysis"
       :analysis="currentAnalysis"
       @restart="handleRestart"
+      @reanalyze="handleReanalyze"
     />
   </div>
 </template>

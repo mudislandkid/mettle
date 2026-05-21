@@ -26,16 +26,6 @@ const totalCommentLines = computed(() =>
 const totalBlankLines = computed(() =>
   props.analysis.projects.reduce((s, p) => s + (p.blank_lines ?? 0), 0)
 )
-const compositionTotal = computed(() =>
-  totalCodeLines.value + totalCommentLines.value + totalBlankLines.value
-)
-
-const segs = computed(() => [
-  { k: 'code',     n: totalCodeLines.value,    tone: 'indigo' as const, label: 'Code' },
-  { k: 'comments', n: totalCommentLines.value,  tone: 'sky' as const,   label: 'Comments' },
-  { k: 'blank',    n: totalBlankLines.value,    tone: 'slate' as const,  label: 'Blank' },
-])
-
 // Markdown totals — fall back to summing projects when the analysis-level
 // aggregate is missing (older analyses without markdown_files/lines fields).
 const totalMarkdownFiles = computed(() => {
@@ -50,6 +40,18 @@ const totalMarkdownLines = computed(() => {
   }
   return props.analysis.projects.reduce((s, p) => s + (p.markdown_lines ?? 0), 0)
 })
+
+const compositionTotal = computed(() =>
+  totalCodeLines.value + totalCommentLines.value + totalBlankLines.value + totalMarkdownLines.value
+)
+
+type Seg = { k: string; n: number; label: string; bar: string; chip: string }
+const segs = computed((): Seg[] => [
+  { k: 'code',     n: totalCodeLines.value,     label: 'Code',     bar: 'bg-indigo-400', chip: 'text-indigo-300' },
+  { k: 'markdown', n: totalMarkdownLines.value, label: 'Markdown', bar: 'bg-violet-400', chip: 'text-violet-300' },
+  { k: 'comments', n: totalCommentLines.value,  label: 'Comments', bar: 'bg-sky-400',    chip: 'text-sky-300' },
+  { k: 'blank',    n: totalBlankLines.value,    label: 'Blank',    bar: 'bg-slate-500',  chip: 'text-slate-300' },
+])
 
 // Risk strip — derived from projects
 const staleCount = computed(() =>
@@ -119,6 +121,16 @@ const pct = (n: number) =>
           </div>
           <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">LOC</div>
         </div>
+        <!-- Markdown Lines -->
+        <div>
+          <div class="text-[28px] font-semibold tabular-nums leading-none text-violet-300">
+            {{ fmtNum(totalMarkdownLines) }}
+          </div>
+          <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5 flex items-baseline gap-1.5">
+            <span>MD lines</span>
+            <span v-if="totalMarkdownFiles > 0" class="text-slate-600 normal-case tracking-normal">· {{ totalMarkdownFiles.toLocaleString() }} files</span>
+          </div>
+        </div>
         <!-- Functions -->
         <div>
           <div class="text-[28px] font-semibold tabular-nums leading-none text-slate-100">
@@ -134,7 +146,7 @@ const pct = (n: number) =>
           <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5">Classes</div>
         </div>
         <!-- Avg Health -->
-        <div class="col-span-2">
+        <div>
           <div class="text-[28px] font-semibold tabular-nums leading-none">
             <span class="flex items-baseline gap-1.5">
               <span :class="TONE[hb.tone].text">{{ avgHealth }}</span>
@@ -158,40 +170,19 @@ const pct = (n: number) =>
             <div
               v-for="s in segs"
               :key="s.k"
-              :class="TONE[s.tone].bar"
+              :class="s.bar"
               :style="{ width: `${compositionTotal > 0 ? (s.n / compositionTotal) * 100 : 0}%` }"
               :title="`${s.label}: ${s.n.toLocaleString()}`"
             />
           </div>
-          <div class="grid grid-cols-3 gap-3 mt-3">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
             <div v-for="s in segs" :key="s.k" class="flex items-baseline gap-2">
-              <span class="w-1.5 h-3 rounded-sm" :class="TONE[s.tone].bar" />
+              <span class="w-1.5 h-3 rounded-sm" :class="s.bar" />
               <div class="leading-tight">
                 <div class="text-[13px] tabular-nums text-slate-100 font-medium">{{ fmtNumExact(s.n) }}</div>
                 <div class="text-[10px] uppercase tracking-[0.08em] text-slate-500">
                   {{ s.label }} · {{ pct(s.n) }}%
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Markdown subset (informational; already counted above) -->
-          <div
-            v-if="totalMarkdownFiles > 0 || totalMarkdownLines > 0"
-            class="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between gap-3"
-          >
-            <div class="flex items-baseline gap-2">
-              <span class="w-1.5 h-3 rounded-sm bg-violet-500/70" aria-hidden="true" />
-              <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">Markdown</span>
-            </div>
-            <div class="flex items-baseline gap-4 leading-tight">
-              <div class="flex items-baseline gap-1.5">
-                <span class="text-[13px] tabular-nums text-slate-100 font-medium">{{ fmtNumExact(totalMarkdownFiles) }}</span>
-                <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">files</span>
-              </div>
-              <div class="flex items-baseline gap-1.5">
-                <span class="text-[13px] tabular-nums text-slate-100 font-medium">{{ fmtNumExact(totalMarkdownLines) }}</span>
-                <span class="text-[10px] uppercase tracking-[0.08em] text-slate-500">lines</span>
               </div>
             </div>
           </div>

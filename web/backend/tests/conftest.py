@@ -5,7 +5,19 @@ single call and clears settings caches between tests so the lru_cache'd
 loader functions actually see the new values.
 """
 
-import pytest
+import os
+import tempfile
+from pathlib import Path
+
+# Route every test to a tmp SQLite DB BEFORE any test module imports
+# web.backend.database.connection (which reads DATABASE_URL once, at import).
+# Without this, tests that POST /api/analysis/start scribble pytest tmpdir
+# paths into the dev mettle.db's recent_paths / analyses tables.
+_TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="mettle-test-"))
+_TEST_DB_PATH = _TEST_DB_DIR / "test.db"
+os.environ.setdefault("METTLE_DATABASE_URL", f"sqlite:///{_TEST_DB_PATH}")
+
+import pytest  # noqa: E402
 
 
 @pytest.fixture

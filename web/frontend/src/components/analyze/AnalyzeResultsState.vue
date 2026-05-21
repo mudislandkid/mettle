@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'restart'): void
+  (e: 'reanalyze'): void
 }>()
 
 // Export URL helper: /api/export/{format}/{id}
@@ -62,6 +63,18 @@ const exportItems: Array<{ label: string; format: 'markdown' | 'json' | 'csv' }>
             :class="i > 0 ? 'border-l border-slate-800' : ''"
           >{{ item.label }}</a>
         </div>
+
+        <!-- Re-analyze same directory -->
+        <button
+          class="px-3 py-1.5 text-[12px] rounded-md bg-slate-800 text-slate-200 ring-1 ring-inset ring-slate-700 hover:bg-slate-700 transition-colors flex items-center gap-1.5"
+          :title="`Re-run analysis on ${analysis.directory_path}`"
+          @click="emit('reanalyze')"
+        >
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+            <path d="M4 10a6 6 0 0110-4.5M16 10a6 6 0 01-10 4.5M16 4v3.5h-3.5M4 16v-3.5h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Re-analyze
+        </button>
 
         <!-- New analysis -->
         <button

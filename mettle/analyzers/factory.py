@@ -21,6 +21,7 @@ from .base import BaseAnalyzer
 from .c_style import CStyleAnalyzer, ObjectiveCAnalyzer, ShellAnalyzer
 from .html_css import HTMLCSSAnalyzer
 from .javascript import JavaScriptAnalyzer
+from .markdown_analyzer import MarkdownAnalyzer
 from .python import PythonAnalyzer
 from .python_ast import PythonAstAnalyzer
 
@@ -112,6 +113,8 @@ class AnalyzerFactory:
             "Shell": ShellAnalyzer,
             "YAML": ShellAnalyzer,
             "Config": ShellAnalyzer,
+            # Documentation — counted in total_lines only, never code/comment/blank
+            "Markdown": MarkdownAnalyzer,
         }
 
         # Cache file lives under the user's cache dir, NOT inside the installed
@@ -174,6 +177,7 @@ class AnalyzerFactory:
                 CStyleAnalyzer,
                 ShellAnalyzer,
                 ObjectiveCAnalyzer,
+                MarkdownAnalyzer,
             ]:
                 cache_data[language] = {
                     "module": analyzer_class.__module__,
