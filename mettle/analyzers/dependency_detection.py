@@ -531,12 +531,45 @@ def parse_composer_json(content: str) -> list[dict]:
         if not isinstance(section, dict):
             continue
         for name, version in section.items():
-            if not isinstance(name, str) or name == "php":
+            if not isinstance(name, str):
+                continue
+            # Skip PHP itself and "platform packages" — `ext-mbstring`,
+            # `lib-openssl` etc. They're environment requirements, not deps.
+            if (
+                name == "php"
+                or name.startswith("ext-")
+                or name.startswith("lib-")
+                or name.startswith("php-")
+            ):
                 continue
             out.append({"name": name, "version": _normalize(version), "manager": "composer"})
             if len(out) >= _DEPS_PER_MANIFEST:
                 return out
     return out
+
+
+def composer_path_repos(content: str) -> list[str]:
+    """Extract `url` values from `composer.json` `repositories` entries of
+    type `path`. Composer uses these to point at sibling packages in a
+    monorepo. URLs can be plain paths or globs (`packages/*`)."""
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return []
+    repos = data.get("repositories")
+    # `repositories` can be a list OR a dict keyed by name.
+    entries: list = []
+    if isinstance(repos, list):
+        entries = repos
+    elif isinstance(repos, dict):
+        entries = list(repos.values())
+    paths: list[str] = []
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("type") == "path":
+            url = entry.get("url")
+            if isinstance(url, str):
+                paths.append(url)
+    return paths
 
 
 _GEMFILE_RE = re.compile(
@@ -556,6 +589,53 @@ def parse_gemfile(content: str) -> list[dict]:
     return out
 
 
+_GEMSPEC_DEP_RE = re.compile(
+    r"""\.\s*add_(?:runtime_|development_)?dependency\s*\(?\s*['"]([^'"]+)['"]"""
+    r"""(?:\s*,\s*['"]([^'"]+)['"])?""",
+    re.MULTILINE,
+)
+
+
+def parse_gemspec(content: str) -> list[dict]:
+    """Parse a .gemspec file's `add_dependency` / `add_runtime_dependency` /
+    `add_development_dependency` calls. This is the source of truth for gem
+    libraries — a project's Gemfile typically just contains `gemspec` to
+    re-export them."""
+    out: list[dict] = []
+    for match in _GEMSPEC_DEP_RE.finditer(content):
+        out.append(
+            {
+                "name": match.group(1),
+                "version": _normalize(match.group(2)),
+                "manager": "rubygems",
+            }
+        )
+        if len(out) >= _DEPS_PER_MANIFEST:
+            return out
+    return out
+
+
+_GEMFILE_GEMSPEC_PATH_RE = re.compile(
+    r"""gemspec[^#\n]*?\bpath:\s*['"]([^'"]+)['"]""",
+)
+_GEMFILE_EVAL_RE = re.compile(
+    r"""^\s*eval_gemfile\s+['"]([^'"]+)['"]""",
+    re.MULTILINE,
+)
+
+
+def gemfile_gemspec_paths(content: str) -> list[str]:
+    """Extract `gemspec path: "subdir"` directives — used by Rails-style
+    multi-gem repos to declare which sub-directories house additional gem
+    libraries."""
+    return _GEMFILE_GEMSPEC_PATH_RE.findall(content)
+
+
+def gemfile_eval_paths(content: str) -> list[str]:
+    """Extract `eval_gemfile 'path/to/Gemfile'` references."""
+    return _GEMFILE_EVAL_RE.findall(content)
+
+
 # (filename, parser) — order matters: first match per directory wins so that
 # a project with both pyproject.toml and requirements.txt prefers the modern one.
 # `requirements.txt` is deliberately NOT here — it's handled by the Python
@@ -570,6 +650,7 @@ _MANIFEST_PARSERS: list[tuple[str, callable]] = [
     ("go.mod", parse_go_mod),
     ("composer.json", parse_composer_json),
     ("Gemfile", parse_gemfile),
+    ("gems.rb", parse_gemfile),  # Bundler 2+ alias for Gemfile, same syntax.
 ]
 
 
@@ -606,6 +687,9 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
 
     cargo_root_content: str | None = None
     pyproject_root_content: str | None = None
+    composer_root_content: str | None = None
+    gemfile_root_content: str | None = None
+    gemfile_root_path: Path | None = None
     for filename, parser in _MANIFEST_PARSERS:
         path = root / filename
         if not path.is_file():
@@ -615,9 +699,26 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
             continue
         if filename == "Cargo.toml":
             cargo_root_content = content
-        if filename == "pyproject.toml":
+        elif filename == "pyproject.toml":
             pyproject_root_content = content
+        elif filename == "composer.json":
+            composer_root_content = content
+        elif filename in ("Gemfile", "gems.rb"):
+            gemfile_root_content = content
+            gemfile_root_path = path
         if _absorb(parser(content)):
+            return collected
+
+    # Root *.gemspec files. For a published gem library these are the source
+    # of truth for declared dependencies (the Gemfile usually just contains
+    # `gemspec` to re-export them).
+    for gemspec_path in sorted(root.glob("*.gemspec")):
+        if not gemspec_path.is_file():
+            continue
+        content = _safe_read(gemspec_path)
+        if content is None:
+            continue
+        if _absorb(parse_gemspec(content)):
             return collected
 
     # Python: multi-file requirements discovery (root + requirements/*.txt)
@@ -660,6 +761,54 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
                     continue
                 if _absorb(parse_go_mod(content)):
                     return collected
+
+    # Composer monorepos: `repositories` with type "path" point at local
+    # sibling packages — each with its own composer.json.
+    if composer_root_content is not None:
+        composer_patterns = composer_path_repos(composer_root_content)
+        if composer_patterns:
+            composer_members = _resolve_workspace_manifests(
+                root, composer_patterns, "composer.json"
+            )
+            for member_path in composer_members:
+                content = _safe_read(member_path)
+                if content is None:
+                    continue
+                if _absorb(parse_composer_json(content)):
+                    return collected
+
+    # Ruby multi-gem repos: Gemfile may carry `gemspec path: "subdir"` for
+    # Rails-style monorepos and `eval_gemfile 'subdir/Gemfile'` for split
+    # Gemfiles. Resolve relative to the root Gemfile's directory.
+    if gemfile_root_content is not None and gemfile_root_path is not None:
+        gem_base = gemfile_root_path.parent
+        for spec_dir in gemfile_gemspec_paths(gemfile_root_content):
+            try:
+                target_dir = (gem_base / spec_dir).resolve()
+                if not target_dir.is_relative_to(root.resolve()):
+                    continue
+            except (OSError, ValueError):
+                continue
+            for gemspec_path in sorted(target_dir.glob("*.gemspec")):
+                if not gemspec_path.is_file():
+                    continue
+                content = _safe_read(gemspec_path)
+                if content is None:
+                    continue
+                if _absorb(parse_gemspec(content)):
+                    return collected
+        for eval_path in gemfile_eval_paths(gemfile_root_content):
+            try:
+                target = (gem_base / eval_path).resolve()
+                if not target.is_file() or not target.is_relative_to(root.resolve()):
+                    continue
+            except (OSError, ValueError):
+                continue
+            content = _safe_read(target)
+            if content is None:
+                continue
+            if _absorb(parse_gemfile(content)):
+                return collected
 
     # uv workspaces: recurse into each declared member pyproject.toml.
     if pyproject_root_content is not None:

@@ -9,6 +9,7 @@ from ..analyzers.dependency_detection import (
     parse_cargo_toml,
     parse_composer_json,
     parse_gemfile,
+    parse_gemspec,
     parse_go_mod,
     parse_package_json,
     parse_pipfile,
@@ -354,6 +355,107 @@ class TestComposer(unittest.TestCase):
         deps = parse_composer_json(content)
         names = {d["name"] for d in deps}
         self.assertEqual(names, {"monolog/monolog"})
+
+    def test_skips_platform_packages(self):
+        """ext-* / lib-* / php-* are environment requirements, not deps."""
+        content = (
+            '{"require": {"php": ">=8.2", "ext-mbstring": "*", '
+            '"lib-openssl": "*", "monolog/monolog": "^3.0"}}'
+        )
+        deps = parse_composer_json(content)
+        names = {d["name"] for d in deps}
+        self.assertEqual(names, {"monolog/monolog"})
+
+    def test_recurses_into_composer_path_repos(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "composer.json").write_text(
+                '{"require": {"monolog/monolog": "^3.0"}, '
+                '"repositories": [{"type": "path", "url": "packages/*"}]}'
+            )
+            (root / "packages" / "lib-a").mkdir(parents=True)
+            (root / "packages" / "lib-a" / "composer.json").write_text(
+                '{"name": "vendor/lib-a", "require": {"vendor/dep-a": "^1.0"}}'
+            )
+            (root / "packages" / "lib-b").mkdir(parents=True)
+            (root / "packages" / "lib-b" / "composer.json").write_text(
+                '{"name": "vendor/lib-b", "require": {"vendor/dep-b": "^2.0"}}'
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "composer"}
+            self.assertEqual(names, {"monolog/monolog", "vendor/dep-a", "vendor/dep-b"})
+
+
+class TestGemspec(unittest.TestCase):
+    def test_parse_gemspec_add_dependency(self):
+        content = (
+            "Gem::Specification.new do |spec|\n"
+            "  spec.add_dependency 'activerecord', '>= 7'\n"
+            "  spec.add_runtime_dependency('actionpack', '>= 7')\n"
+            "  spec.add_development_dependency 'rspec'\n"
+            "end\n"
+        )
+        deps = parse_gemspec(content)
+        by_name = {d["name"]: d["version"] for d in deps}
+        self.assertEqual(by_name["activerecord"], ">= 7")
+        self.assertEqual(by_name["actionpack"], ">= 7")
+        self.assertIsNone(by_name["rspec"])
+
+    def test_root_gemspec_discovered(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "mylib.gemspec").write_text(
+                "Gem::Specification.new { |s| s.add_dependency 'rake', '~> 13' }\n"
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "rubygems"}
+            self.assertIn("rake", names)
+
+    def test_multi_gem_repo_via_gemspec_path(self):
+        """Rails-style: root Gemfile uses `gemspec path: "sub"` to declare
+        additional gem libraries living in subdirectories."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "Gemfile").write_text(
+                "source 'https://rubygems.org'\n"
+                "gemspec\n"
+                "gemspec path: 'activerecord'\n"
+                "gemspec path: 'actionpack'\n"
+            )
+            (root / "activerecord").mkdir()
+            (root / "activerecord" / "activerecord.gemspec").write_text(
+                "Gem::Specification.new { |s| s.add_dependency 'sqlite3' }\n"
+            )
+            (root / "actionpack").mkdir()
+            (root / "actionpack" / "actionpack.gemspec").write_text(
+                "Gem::Specification.new { |s| s.add_dependency 'rack', '>= 3' }\n"
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "rubygems"}
+            self.assertIn("sqlite3", names)
+            self.assertIn("rack", names)
+
+    def test_eval_gemfile_followed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "Gemfile").write_text("eval_gemfile 'gemfiles/rails_7.gemfile'\n")
+            (root / "gemfiles").mkdir()
+            (root / "gemfiles" / "rails_7.gemfile").write_text(
+                "gem 'rails', '~> 7.0'\ngem 'puma'\n"
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "rubygems"}
+            self.assertIn("rails", names)
+            self.assertIn("puma", names)
+
+    def test_gems_rb_alias(self):
+        """gems.rb is the Bundler 2+ name for Gemfile, same syntax."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "gems.rb").write_text("gem 'sinatra'\n")
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "rubygems"}
+            self.assertEqual(names, {"sinatra"})
 
 
 class TestGemfile(unittest.TestCase):
