@@ -2,11 +2,11 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.9.0--beta-yellow.svg)
+![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10+-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-orange.svg)
 
-**A code analysis tool that produces honest line, structure, and history metrics for a single project or a whole directory of projects — via CLI, batch, or web UI.**
+**A triage dashboard for the AI-coding era. Honest line counts, secret + license scanning, health scoring, and a cross-project digest that tells you what actually moved across your whole portfolio.**
 
 </div>
 
@@ -29,7 +29,10 @@
 
 Point Mettle at a project (or a directory full of them) and get back:
 
+- **A cross-project digest** — _the hero feature._ One report covering your whole portfolio: which projects grew most, biggest health swings, dependency drift (added / removed / version bumps), stale-but-with-open-TODOs, newly-stale, new since last run, and no-recent-activity. Markdown, JSON, or live in the web UI.
 - **Honest line counts.** Blank / comment / code lines that always sum to `total_lines` — no double-counting, no `//` matched inside strings, no `if (x) {}` counted as a function.
+- **Secret scanning.** Detects API keys / tokens / private keys with per-file context and severity. Surfaced in the project table, the project detail page, and the digest's `dependency_drift` cross-checks.
+- **SPDX license detection.** Identifies `LICENSE` / `COPYING` files and resolves them to SPDX identifiers (Apache-2.0, MIT, GPL-3.0-only, etc.). Flags projects missing a license entirely.
 - **Structural metrics.** Functions, classes, imports, TODO/FIXME/XXX/HACK markers (with file + line capture for inspection), per-language.
 - **Python AST analysis.** Stdlib `ast` walker counts async functions, nested defs, decorators-with-arguments, set/dict/generator comprehensions, and per-function McCabe cyclomatic complexity. Falls back to the regex analyzer on `SyntaxError`.
 - **Test-code segregation.** Detects test files by filename/dir convention so a 30k-line project doesn't read as code when 25k of it is tests.
@@ -39,20 +42,56 @@ Point Mettle at a project (or a directory full of them) and get back:
 - **Per-project reports** in console, Markdown, JSON, **HTML** (self-contained with inline SVG charts), and PDF.
 - **Git history.** Lines-over-time, commit cadence, contribution heatmap, per-author totals, hour-of-day / day-of-week patterns.
 - **Batch reports** across many projects with GitHub-owner filtering, public-SDK skipping, file-count caps, and depth-limited discovery.
-- **A web UI** for browsing, sorting, filtering, flagging, tagging, and re-analyzing projects, with progress streamed live over a WebSocket. Dark-themed by default. Side-by-side **project comparison view**, **TODO inspector**, **dependency panel**, **complexity panel**, **top-N highlights**, **stale-project** filter, and **bulk flag/tag operations**.
-- **CI / pre-commit mode** (`--check --fail-on file-lines-over=500`) — non-interactive, exits non-zero on threshold violations.
-- **Watch mode** (`--watch`) — re-analyses on file change with debouncing, prints compact per-metric deltas.
+- **A redesigned web UI** with three hero pages — **Digest**, **Analyze** (Empty → Running → Results), and **History** (activity heatmap + portfolio highlights + per-directory timelines). Dark slate-950 + indigo, ambient gradient, Inter + JetBrains Mono. Plus the existing per-project drill-in (TODO inspector, dependency panel, complexity panel, health breakdown, project comparison, git history charts).
+- **CI / pre-commit mode** (`mettle check . --fail-on file-lines-over=500`) — non-interactive, exits non-zero on threshold violations.
+- **Watch mode** (`mettle watch .`) — re-analyses on file change with debouncing, prints compact per-metric deltas.
 - **mtime-based per-file cache.** Re-analysing a 5,000-file project skips disk reads + regex passes for files that haven't changed.
+- **Hardened for local use.** Per-IP rate limiting, path-jail on every directory input, CSRF tokens on state-changing endpoints, and `localhost`-only bind by default. The web UI explicitly refuses to listen on non-loopback addresses without `--allow-public-bind`.
 - **Extensible via entry points.** Ship a `BaseAnalyzer` subclass in your own pip package, register it under `[project.entry-points."mettle.analyzers"]`, and it loads on the next run.
 
 It's useful when you want to:
 
+- Open the dashboard on Monday and see what _actually_ changed across all your projects last week without scanning ten repos by hand.
 - See "what languages do I actually write?" across all your projects in one table.
 - Identify the largest, oldest, most-complex, or most-changed projects in a folder.
+- Catch a leaked API key or missing license before you push.
 - Generate a PDF/Markdown/HTML snapshot of a single codebase for a stakeholder or yourself.
 - Tag and triage a sea of repos (e.g. mark which ones are vendored / wip / archived).
 - Track lines-of-code evolution over time on any git repo.
 - Wire a "no file > 500 lines, no function with complexity > 20" check into pre-commit / CI.
+
+---
+
+## 🚦 Quickstart
+
+The fast path to a running web UI on your machine:
+
+```bash
+git clone https://github.com/mudislandkid/mettle.git
+cd mettle
+
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+
+pip install -e ".[web]"              # backend + CLI
+cd web/frontend && npm install       # frontend
+cd ../..                             # back to repo root
+
+mettle web                           # dev mode: API on :8000, Vite on :5173
+```
+
+Open **http://localhost:5173**.
+
+Or skip the UI and run a one-shot analysis from the terminal:
+
+```bash
+mettle scan /path/to/your/project              # full single-project analysis
+mettle batch /path/to/your/projects/           # cross-project batch
+mettle digest --since 7d --top 5 --format md   # what changed in the last week
+mettle check . --fail-on file-lines-over=500   # CI/pre-commit mode
+```
+
+Run any subcommand with `--help` for flags. Full details below.
 
 ---
 
@@ -81,24 +120,30 @@ Other detected languages get accurate line counts and language attribution but n
 
 ### 🌐 Web UI
 
-- **Vue 3 + Vite + TypeScript** frontend with **Tailwind CSS** styling and **Apache ECharts** for git history charts.
-- **Dark / light theme** toggle, persisted in `localStorage`, honours `prefers-color-scheme` on first load. No white flash on boot.
-- **FastAPI + SQLModel + SQLite (WAL mode)** backend.
-- **Real-time progress** over WebSocket (with auto-reconnect, exponential backoff, and a 10-minute fallback poll).
-- **Project organization**: 8 predefined flags (`not_mine`, `archived`, `wip`, `vendored`, `tutorial`, `fork`, `deprecated`, `production`) plus custom user tags with colors, all editable inline.
-- **Bulk operations.** Multi-select projects via checkboxes and apply add/remove/replace operations for flags and tags (capped at 500 per call).
-- **Project notes.** Free-text markdown notes keyed by project path — survive re-analyses, auto-saved with debounce.
-- **Project comparison view.** Pick 2-8 projects from the table and render a side-by-side metrics table with per-row winner highlighting.
-- **Health score breakdown.** Per-project composite score with explainable per-component breakdown panel.
-- **Diff view.** `/project/:id/diff` shows before/after/delta for every metric across two snapshots, plus language adds/removes and days between.
+Three hero pages built on a shared slate-950 + indigo + ambient-gradient shell (Inter / JetBrains Mono):
+
+- **Digest (`/digest`)** — cross-portfolio report with 7 ranked sections (grown most, biggest health swings, dependency drift, stalled-with-TODOs, newly stale, new since the window, no recent activity). Live param controls for window / top-N / stale-after, "Copy Markdown" action, coverage bar showing how many projects feed the report.
+- **Analyze (`/`)** — three-state machine:
+  - _Empty:_ path input with recent-paths dropdown + quick-reuse chips + advanced filters disclosure + a 4-card rail of recent analyses.
+  - _Running:_ progress ring, 4-step phase tracker (Discover → Count → Analyze → Finalize), live counter tiles (Projects / Files / TODOs / Secrets), terminal-style console with auto-scroll.
+  - _Results:_ unified summary hero (replaces the old gradient cards) + redesigned project table with search, quick-filter chips (Health <60, Has secrets, Stale, No license, No tests), bulk-action bar, inline health bar, language pills, risk cluster, SPDX badge.
+- **History (`/history`)** — hero counters + 8-week GitHub-style activity heatmap + 4-card portfolio highlights grid (Biggest / Stalest / Most TODOs / Lowest health) + Runs-by-Directory with search, status filter, collapsible directory groups, growth sparkline, and per-run timeline rows with View / Diff / Delete.
+
+Per-project drill-in (from any project row) still has:
+
 - **TODO inspector** with marker filters (TODO / FIXME / XXX / HACK), file grouping, and text search across captured `(file, line, marker, text)` rows.
 - **Dependency panel** grouped by manager with filter input and color-coded badges, plus a cross-project "who uses react?" view.
 - **Complexity panel** showing top complex Python functions color-coded by McCabe thresholds (≤10 simple, ≤20 moderate, ≤50 complex, >50 untestable).
-- **Top-N highlights** panels on the History view: biggest, stalest, most TODOs, lowest health.
-- **Stale-project detection** combining `last_commit_at` + flags filter, with a "Show stale only" toggle.
-- **Git history visualization**: lines-of-code trend, monthly/weekly commit bars, GitHub-style calendar heatmap, hour-of-day × day-of-week pattern grid, per-author bar chart. Results are cached with a 5-minute TTL.
+- **Secrets drawer** listing detected secrets with severity, file path, and line.
+- **Health score breakdown** — per-component contribution to the composite score.
+- **Project diff view** — `/project/:id/diff` shows before/after/delta for every metric across two snapshots.
+- **Project comparison view** — pick 2-8 projects and render a side-by-side metrics table with per-row winner highlighting.
+- **Git history**: lines-of-code trend, monthly/weekly commit bars, calendar heatmap, hour-of-day × day-of-week pattern grid, per-author bar chart. Cached with a 5-minute TTL. (ECharts is lazy-loaded in its own chunk — initial app payload stays light.)
+- **Project notes** keyed by project path — survive re-analyses, auto-saved with debounce.
+- **Bulk operations.** Multi-select projects via checkboxes and apply add/remove/replace operations for flags and tags (capped at 500 per call).
 - **Export** any analysis to Markdown, JSON, or CSV (CSV cells safely quoted with OWASP formula-prefix escaping).
-- **Recent paths** dropdown for autocomplete.
+
+**Stack:** Vue 3 + Vite + TypeScript + Tailwind on the frontend; FastAPI + SQLModel + SQLite (WAL mode) on the backend. Progress streamed live over WebSocket with auto-reconnect and exponential backoff. 8 predefined flags (`not_mine`, `archived`, `wip`, `vendored`, `tutorial`, `fork`, `deprecated`, `production`) plus custom user tags with colors, all editable inline.
 
 ### 📦 Batch analysis
 
@@ -111,12 +156,13 @@ Other detected languages get accurate line counts and language attribution but n
 
 ## 🚀 Installation
 
-Mettle is packaged with `pyproject.toml`. One distribution, two install profiles.
+Mettle ships as a single Python package with optional extras. Everything is driven by one `mettle` command with subcommands.
 
 **Requirements:**
 - Python **3.10+**
 - (Web UI only) Node.js **18+**
 - SQLite (bundled with Python)
+- `git` on `$PATH` (for the git-history features; everything else works without it)
 
 ### CLI only
 
@@ -130,39 +176,42 @@ source .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
-This puts two commands on your PATH:
+This puts a single `mettle` command on your PATH with subcommands `scan`, `batch`, `watch`, `check`, `digest`, `web`:
 
 ```bash
-mettle /path/to/project        # single-project analysis with PDF
-mettle-batch /path/to/parent   # batch summary across many projects
+mettle --help                  # list subcommands
+mettle scan /path/to/project   # single-project analysis with PDF
+mettle batch /path/to/parent   # batch summary across many projects
 ```
 
-`python -m mettle` and `python batch_analyze.py` continue to work too.
+`python -m mettle` continues to work too. (`python batch_analyze.py` is also still there for legacy callers.)
 
 ### Web Application (CLI + web extras)
 
 ```bash
-pip install -e ".[web]"              # backend deps (FastAPI, SQLModel, ...)
+pip install -e ".[web]"              # backend deps (FastAPI, SQLModel, alembic, ...)
 cd web/frontend && npm install       # frontend deps (Vue, Vite, ECharts)
-cd .. && python run.py               # starts both servers (dev mode)
+cd ../..                             # back to repo root
+
+mettle web                           # dev mode: API on :8000, Vite on :5173
 ```
 
 Then open **http://localhost:5173**.
 
 ### Watch mode (optional)
 
-`--watch` re-runs analysis on file changes. It needs the [`watchfiles`](https://watchfiles.helpmanual.io/) package:
+`mettle watch` re-runs analysis on file changes. It needs the [`watchfiles`](https://watchfiles.helpmanual.io/) package:
 
 ```bash
 pip install -e ".[watch]"            # adds watchfiles
-mettle /path/to/project --watch
+mettle watch /path/to/project
 ```
 
 ### Developer install
 
 ```bash
-pip install -e ".[web,dev,watch]"    # adds pytest + watchfiles
-python -m unittest discover mettle.tests   # 79 tests
+pip install -e ".[web,dev,watch]"    # adds pytest, ruff, mypy, httpx, watchfiles
+python -m pytest                     # 216 tests (CLI + backend)
 ```
 
 ### Reproducible installs
@@ -179,77 +228,79 @@ pip install -r requirements.lock
 
 ## 📋 Usage
 
-### 🌐 Web UI
+### 🌐 Web UI — `mettle web`
 
 ```bash
-# Dev mode: hot-reload backend + Vite dev server
-cd web && python run.py
+# Dev mode: hot-reload backend + Vite dev server (default)
+mettle web
 # → frontend at http://localhost:5173
 # → API docs at http://localhost:8000/docs
 
-# Backend only
-python run.py --mode backend-only
+# Backend only (useful if you want to point your own frontend at it)
+mettle web --mode backend-only
 
-# Production: build the frontend bundle, then serve everything from backend
-python run.py --mode prod
+# Production: build the frontend bundle, then serve everything from FastAPI
+mettle web --mode prod
 
 # Custom ports
-python run.py --backend-port 8001 --frontend-port 5174
+mettle web --backend-port 8001 --frontend-port 5174
 
 # Auto-install missing Python / npm deps on first run (off by default
 # to avoid surprise installs)
-python run.py --auto-install
+mettle web --auto-install
+
+# Bind to a non-loopback address (refused unless you explicitly allow it)
+mettle web --backend-host 0.0.0.0 --allow-public-bind
 ```
 
-In the UI you can:
+Then in the UI:
 
-- Pick a directory, set filters, hit **Analyze**, watch progress live.
-- Sort / filter / search the project table, click a row to drill into a project.
-- Toggle flags and add tags inline.
-- Inspect git history charts on the project detail page.
-- Export the current analysis to Markdown / JSON / CSV.
-- Browse and delete previous analyses from the **History** view.
+- Hit **Analyze**, pick a directory, watch progress stream live, see the redesigned summary + project table on completion.
+- Visit **History** for the activity heatmap, portfolio highlights, and per-directory timelines.
+- Visit **Digest** for the cross-portfolio "what changed this week" report. Tweak the window / top-N / stale-after live; copy the markdown to share.
+- Click any project row to drill into TODOs, dependencies, complexity, secrets, health breakdown, git history, and notes.
+- Export an analysis to Markdown / JSON / CSV from the results header.
 
-### 📊 Single-project CLI
+### 📊 Single-project analysis — `mettle scan`
 
 ```bash
 # Interactive: prompts for path and project name on first run
-mettle
+mettle scan
 
 # Direct
-mettle /path/to/your/project
+mettle scan /path/to/your/project
 
 # Custom PDF output path
-mettle /path/to/your/project -o custom_report.pdf
+mettle scan /path/to/your/project -o custom_report.pdf
 
 # Skip PDF / HTML
-mettle /path/to/your/project --no-pdf
-mettle /path/to/your/project --no-html
+mettle scan /path/to/your/project --no-pdf
+mettle scan /path/to/your/project --no-html
 
 # Skip files over N lines (e.g. minified bundles)
-mettle /path/to/your/project --max-lines 1000
+mettle scan /path/to/your/project --max-lines 1000
 
 # Exclude language buckets or directories by name
-mettle /path/to/your/project --exclude-types Other Binary Data
-mettle /path/to/your/project --exclude-dirs models node_modules
+mettle scan /path/to/your/project --exclude-types Other Binary Data
+mettle scan /path/to/your/project --exclude-dirs models node_modules
 
 # Diff against the most recent prior run for this directory
-mettle /path/to/your/project --compare-to-last
+mettle scan /path/to/your/project --compare-to-last
 
 # Verbose logging (stack traces, large-file detection, etc.)
-mettle /path/to/your/project --debug
+mettle scan /path/to/your/project --debug
 ```
 
-#### CI / pre-commit mode
+#### CI / pre-commit mode — `mettle check`
 
 Non-interactive, no PDF/HTML/Markdown writes, exits non-zero on threshold violations:
 
 ```bash
 # Single threshold
-mettle /path/to/project --check --fail-on file-lines-over=500
+mettle check /path/to/project --fail-on file-lines-over=500
 
 # Multiple thresholds (--fail-on is repeatable)
-mettle /path/to/project --check \
+mettle check /path/to/project \
   --fail-on file-lines-over=500 \
   --fail-on functions-over=50 \
   --fail-on cyclomatic-over=20 \
@@ -267,51 +318,85 @@ Available threshold keys:
 
 Wire into `pre-commit` via a `repo: local` hook, or into CI as a build step. Output groups violations by rule and prints one line per offender.
 
-#### Watch mode
+#### Watch mode — `mettle watch`
 
 Re-runs the analysis on file changes (debounced) and prints a compact per-metric delta. Needs the `[watch]` extra (`pip install -e ".[watch]"`):
 
 ```bash
-mettle /path/to/project --watch
-mettle /path/to/project --watch --watch-debounce 3000   # ms
+mettle watch /path/to/project
+mettle watch /path/to/project --watch-debounce 3000   # ms
 ```
 
 Changes inside the same exclude list the analyzer normally skips (`.git`, `node_modules`, `dist/`, ...) don't trigger re-runs. `Ctrl+C` to stop.
 
-### 📦 Batch CLI
+### 📦 Batch CLI — `mettle batch`
 
 ```bash
 # Basic batch — every direct subdirectory that looks like a project
-mettle-batch /path/to/parent/directory
+mettle batch /path/to/parent/directory
 
 # Filter to projects you own via git remote
-mettle-batch /path/to/parent --github-user mudislandkid
+mettle batch /path/to/parent --github-user mudislandkid
 
 # Skip linux / tensorflow / esp-idf / react / etc.
-mettle-batch /path/to/parent --skip-public-sdks
+mettle batch /path/to/parent --skip-public-sdks
 
 # Skip vast projects (e.g. monorepos with 100k files)
-mettle-batch /path/to/parent --max-files 5000
+mettle batch /path/to/parent --max-files 5000
 
 # Emit a Markdown table + JSON
-mettle-batch /path/to/parent --output report.md --json results.json
+mettle batch /path/to/parent --markdown report.md --output results.json
 
 # Walk deeper (handy if projects live two levels down)
-mettle-batch /path/to/parent --depth 2
+mettle batch /path/to/parent --depth 2
 
 # Treat every subdirectory as a project, ignoring heuristics
-mettle-batch /path/to/parent --all
+mettle batch /path/to/parent --all
 
 # Combine
-mettle-batch /Volumes/Projects \
+mettle batch /Volumes/Projects \
   --github-user mudislandkid \
   --skip-public-sdks \
   --max-files 5000
 ```
 
+### 📰 Cross-project digest — `mettle digest`
+
+Produces a portfolio-level "what changed" report by diffing the most recent batch run against an older baseline within the window. Output is Markdown by default (great for pasting into a journal) or JSON for piping into other tools.
+
+```bash
+# Default: last 7 days, top 5 per section, 30-day stale cutoff, Markdown to stdout
+mettle digest
+
+# Different window
+mettle digest --since 1d
+mettle digest --since 14d
+mettle digest --since 1m
+
+# More entries per section, looser stale threshold
+mettle digest --since 30d --top 10 --stale-days 60
+
+# JSON for machine consumption
+mettle digest --format json --out digest.json
+```
+
+Sections in the report:
+
+| Section | Meaning |
+|---------|---------|
+| `grown_most` | Biggest code-line increases since the start of the window. |
+| `biggest_swing` | Largest health-score deltas (up or down). |
+| `dependency_drift` | Added / removed / version-bumped dependencies per project. |
+| `stalled_with_todos` | No commits in `stale_days` but TODOs still open. |
+| `newly_stale` | Projects that crossed the stale-days line _during_ the window. |
+| `new_since` | First-analyzed inside the digest window. |
+| `no_recent_activity` | All analyses older than the window. |
+
+Requires at least one historical analysis in the web DB (created by running `mettle web` and analysing a directory, or via the API). The digest reads `web/mettle.db`.
+
 ### 🔄 Analysis process (single-project CLI)
 
-When `mettle` runs interactively:
+When `mettle scan` runs interactively:
 
 1. **Project naming.** You're offered the previous name used for this directory (if any), recent project names, the directory name as default, or a fresh name. Names are sanitized against path separators and parent-dir refs.
 2. **Output location.** A timestamped directory is created under `$METTLE_HOME/analysis/` (default: `~/.mettle/analysis/`). Format: `YYYYMMDD_HHMMSS_project_name`.
@@ -395,14 +480,18 @@ languages:
 
 ```
 Mettle/
-├── mettle/                   # Core analysis engine (the `mettle` package)
+├── mettle/                         # Core analysis engine
 │   ├── __init__.py
-│   ├── __main__.py                 # CLI entry point — `mettle` / `python -m mettle`
-│   ├── watch.py                    # --watch mode (debounced re-run + delta printing)
+│   ├── __main__.py                 # python -m mettle entry → CLI
+│   ├── cli.py                      # Click app: scan / batch / watch / check / web / digest
+│   ├── digest.py                   # Cross-project digest: data classes, 7 section helpers, renderers
+│   ├── secrets.py                  # Secret scanner: API keys, tokens, private keys
+│   ├── license_detection.py        # SPDX license detector
+│   ├── license_corpus.py           # Bundled SPDX text corpus for scoring
+│   ├── watch.py                    # Debounced re-run + delta printing
 │   ├── config.yaml                 # Bundled default configuration
 │   ├── config_manager.py
 │   ├── analyzers/
-│   │   ├── __init__.py
 │   │   ├── base.py                 # BaseAnalyzer + classify_lines() + string masking
 │   │   ├── cache.py                # SQLite-backed mtime cache for per-file metrics
 │   │   ├── code_analyzer.py        # Top-level analyzer; orchestrates the per-project pass
@@ -413,77 +502,69 @@ Mettle/
 │   │   ├── test_detection.py       # Filename/dir heuristics for test code segregation
 │   │   ├── python.py               # Regex-based Python analyzer (fallback)
 │   │   ├── python_ast.py           # AST-based analyzer + McCabe complexity
-│   │   ├── javascript.py           # Also handles TypeScript, JSX, hooks, interfaces, enums
-│   │   ├── html_css.py             # Also handles Vue / Svelte for elements
+│   │   ├── javascript.py           # TypeScript, JSX, hooks, interfaces, enums
+│   │   ├── html_css.py             # Vue / Svelte for elements
 │   │   ├── c_style.py              # CStyleAnalyzer, ObjectiveCAnalyzer, ShellAnalyzer
 │   │   └── template_analyzer.py    # Reference template (not auto-registered)
-│   ├── metrics/
-│   │   ├── __init__.py
-│   │   └── file_metrics.py
-│   ├── reporters/
-│   │   ├── __init__.py
-│   │   ├── base.py
-│   │   ├── console.py
-│   │   ├── markdown.py
-│   │   ├── html.py                 # Self-contained HTML with inline SVG charts
-│   │   └── pdf.py                  # Uses Figure/FigureCanvasAgg (thread-safe)
-│   └── tests/                      # 79 unit tests
-│       ├── __init__.py
-│       ├── test_analyzers.py
-│       ├── test_cache.py
-│       ├── test_check_mode.py
-│       ├── test_dependency_detection.py
-│       ├── test_entry_point_plugins.py
-│       ├── test_generated_detection.py
-│       ├── test_reporters.py
-│       └── test_watch.py
+│   ├── metrics/file_metrics.py
+│   ├── reporters/                  # console / markdown / html / pdf
+│   └── tests/                      # CLI / digest / secrets / license / analyzers / cache / ...
 │
-├── batch_analyze.py                # Batch CLI — `mettle-batch` / `python batch_analyze.py`
+├── batch_analyze.py                # Legacy batch entry (now also reachable as `mettle batch`)
 │
 ├── web/
 │   ├── backend/                    # FastAPI app
-│   │   ├── main.py                 # App, CORS, lifespan, routers
+│   │   ├── main.py                 # App, CORS, lifespan, routers, security middleware
 │   │   ├── config.py
 │   │   ├── database/
 │   │   │   ├── connection.py       # Engine + SQLite PRAGMAs (WAL, foreign_keys)
 │   │   │   └── models.py           # SQLModel models with ondelete=CASCADE
 │   │   ├── api/
-│   │   │   ├── routes_analysis.py  # /api/analysis + WebSocket
-│   │   │   ├── routes_projects.py  # /api/projects (flags, tags, refresh)
+│   │   │   ├── routes_analysis.py  # /api/analysis + WebSocket (enriched list response)
+│   │   │   ├── routes_digest.py    # /api/digest/ — cross-portfolio report
+│   │   │   ├── routes_projects.py  # /api/projects (flags, tags, refresh, highlights)
 │   │   │   ├── routes_git.py       # /api/projects/{id}/git/stats
 │   │   │   ├── routes_tags.py      # /api/tags + /api/tags/flags/types
 │   │   │   └── routes_export.py    # Markdown / JSON / CSV export + path utils
-│   │   ├── services/
-│   │   │   ├── analyzer_service.py
-│   │   │   └── git_analyzer_service.py   # Sandboxed git env + TTL cache
-│   │   └── schemas/
-│   │       ├── analysis.py
-│   │       ├── common.py
-│   │       ├── git.py
-│   │       └── tags.py
-│   ├── frontend/                   # Vue 3 + Vite app
+│   │   ├── services/               # analyzer_service, git_analyzer_service (TTL cache + sandboxed env)
+│   │   ├── schemas/                # Pydantic mirrors (analysis, digest, common, git, tags)
+│   │   ├── security/               # CSRF, rate limiter, path jail
+│   │   └── tests/                  # Backend test suite (216-test total includes these)
+│   ├── frontend/                   # Vue 3 + Vite + TypeScript
 │   │   ├── src/
-│   │   │   ├── components/         # ProjectTableNative (bulk ops), GitStats/*, AnalysisProgress,
-│   │   │   │                       # TodoInspector, DependencyPanel, ComplexityPanel,
-│   │   │   │                       # HealthBreakdown, HighlightsPanels, AuthorBarChart, ...
-│   │   │   ├── views/              # AnalysisView, ProjectDetailView, HistoryView,
-│   │   │   │                       # ProjectDiffView, ProjectCompareView
-│   │   │   ├── composables/        # useAnalysis, useWebSocket, useGitStats, useTheme
-│   │   │   ├── api/                # Typed API client
+│   │   │   ├── components/
+│   │   │   │   ├── digest/         # DigestHeader, DigestSection, DigestEntry,
+│   │   │   │   │                   # DependencyDriftExpansion, StaleEntryExpansion
+│   │   │   │   ├── analyze/        # 3-state (Empty/Running/Results) + leaf pieces:
+│   │   │   │   │                   # PathInput, ProgressRing, PhaseTracker,
+│   │   │   │   │                   # SummaryHero, ProjectTable, RiskBadges, ...
+│   │   │   │   ├── history/        # ActivityHeatmap, HistoryHero, PortfolioHighlights,
+│   │   │   │   │                   # HighlightCard, RunsByDirectory, DirectoryGroup,
+│   │   │   │   │                   # AnalysisTimelineRow, GrowthSparkline, RunsToolbar
+│   │   │   │   ├── GitStats/       # ECharts visualizations (lazy-loaded vendor chunk)
+│   │   │   │   └── ...             # TodoInspector, DependencyPanel, ComplexityPanel,
+│   │   │   │                       # SecretsDrawer, HealthBreakdownPanel, ProjectTableNative
+│   │   │   ├── views/              # AnalysisView, HistoryView, DigestView,
+│   │   │   │                       # ProjectDetailView, ProjectDiffView, ProjectCompareView
+│   │   │   ├── composables/        # useAnalysis, useDigest, useWebSocket, useGitStats, useTheme
+│   │   │   ├── api/                # Typed API client (fetchDigest, listAnalyses, ...)
+│   │   │   ├── lib/                # format.ts (fmtNum/fmtRelative/...), tone.ts (TONE/healthBucket)
 │   │   │   └── types/
 │   │   ├── package.json
-│   │   └── vite.config.ts
-│   └── run.py                      # Unified dev/prod launcher
+│   │   └── vite.config.ts          # ECharts split into a vendor chunk via manualChunks
+│   └── run.py                      # Dev/prod launcher (invoked by `mettle web`)
+│
+├── alembic/                        # Migrations (incl. 0003_analysis_completed_at)
 │
 ├── docs/
-│   ├── CODEBASE_REVIEW.md          # Architectural review / findings report
+│   ├── CODEBASE_REVIEW.md          # Architectural review / threat model
 │   ├── images/
 │   └── reports/                    # Historical example reports
 │
 └── pyproject.toml                  # Single source of truth for deps + console scripts
 ```
 
-CLI runtime state lives under `~/.mettle/` (not in the repo).
+CLI runtime state lives under `~/.mettle/` (not in the repo). The web UI database lives at `web/mettle.db` and is what `mettle digest` reads.
 
 ---
 
@@ -518,11 +599,12 @@ All routes are prefixed under `/api/`. Backend captures the asyncio loop at star
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/api/analysis/start` | Start a new analysis. Returns `{id, status}`. |
-| `GET` | `/api/analysis/` | List analyses (paginated; `limit` capped at 200). |
+| `GET` | `/api/analysis/` | List analyses (paginated; `limit` capped at 200). Each row is enriched with `avg_health`, `secrets_found`, `duration_seconds`, `completed_at`, `error_message`. |
 | `GET` | `/api/analysis/{id}` | Get analysis + nested projects. |
 | `GET` | `/api/analysis/status/{id}` | Lightweight status poll. |
 | `DELETE` | `/api/analysis/{id}` | Delete analysis (cascades). |
 | `WS` | `/api/analysis/ws/{id}` | Live progress updates. |
+| `GET` | `/api/digest/` | Cross-portfolio digest report. Query params: `since` (e.g. `7d`), `top` (entries per section), `stale_days`. |
 | `GET` | `/api/projects/` | List projects (filterable, sortable; supports `?stale_days=N`). |
 | `GET` | `/api/projects/{id}` | Single project. |
 | `PATCH` | `/api/projects/{id}/flags` | Update flags. |
@@ -553,9 +635,16 @@ All routes are prefixed under `/api/`. Backend captures the asyncio loop at star
 
 ### Security notes
 
-Mettle is designed for **local / single-user use on `localhost`**. The web endpoints have no authentication. If you intend to expose this beyond your machine, you'll need to add an auth layer plus a directory allowlist — see `docs/CODEBASE_REVIEW.md` for the full list of considerations.
+Mettle is designed for **local / single-user use on `localhost`**. The web endpoints have no authentication (v2 will add it). What is in place for v0.9:
 
-Even on localhost, the git history feature shells out to `git` against directories you've pointed it at. The subprocess runs with `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, and a scrubbed environment, so a malicious `.git/config` inside a scanned repo can't trigger code execution via `core.fsmonitor` / `core.sshCommand`.
+- **Loopback bind by default.** `mettle web` refuses to bind `--backend-host` to anything other than a loopback address unless you pass `--allow-public-bind` explicitly.
+- **Per-IP rate limiting.** All routes are rate-limited (default: 60 req/min per IP) to blunt accidental loops or aggressive polling.
+- **CSRF tokens.** State-changing endpoints (POST/PUT/PATCH/DELETE) require a CSRF token issued at session start.
+- **Path jail.** Every directory input (`/api/analysis/start`, `/api/validate-path`, etc.) is resolved and checked against an allowlist root — symlink escapes are blocked.
+- **Sandboxed git.** The git history feature shells out to `git` against directories you've pointed it at. The subprocess runs with `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, and a scrubbed environment, so a malicious `.git/config` inside a scanned repo can't trigger code execution via `core.fsmonitor` / `core.sshCommand`.
+- **OWASP formula-prefix escaping** on CSV exports so a cell starting with `=`/`+`/`-`/`@` can't fire as a formula in Excel / Sheets.
+
+If you intend to expose Mettle beyond your machine, you still want an auth layer in front of it. See `docs/CODEBASE_REVIEW.md` for the full threat model.
 
 ---
 
@@ -641,21 +730,29 @@ The bundled `mettle/config.yaml` is never written to. Override behavior with a `
 ## 🧪 Tests
 
 ```bash
-pip install -e ".[dev]"
-python -m unittest discover mettle.tests   # 79 tests
+pip install -e ".[web,dev]"
+python -m pytest                # 216 tests (CLI + backend, full suite)
 ```
 
-Backend has its own test layer (run from the repo root):
+Or run each layer individually:
 
 ```bash
-python -m pytest web/backend/tests
+python -m pytest mettle/tests           # CLI / analyzer / digest / secrets / license
+python -m pytest web/backend/tests      # API + WebSocket + security
 ```
 
-The CLI test suite includes:
+The CLI test suite covers:
 
 - a `LineSumInvariant` group that asserts `blank + comment + code == total_lines` across every analyzer
 - regression tests for the bugs the rewrite fixed (`//` inside strings, JS `if(){}` being miscounted as a function, Python `#` inside strings)
+- the digest module (7 section helpers, dependency diff, baseline classifier, markdown + JSON renderers)
+- the secret scanner (per-kind detectors + severity)
+- the SPDX license detector against a curated corpus
 - coverage for the mtime cache, dependency detection, generated-file detection, the HTML / markdown reporters, CI check mode, watch mode, and entry-point analyzer plugins.
+
+The backend test suite covers the REST routes (including the digest endpoint), the WebSocket progress channel, alembic migrations, path-jail, CSRF, and rate-limiting middleware.
+
+CI runs the full suite on a 3 × 2 matrix (Python 3.10 / 3.11 / 3.12 × ubuntu-latest / macos-latest) on every push.
 
 ---
 
