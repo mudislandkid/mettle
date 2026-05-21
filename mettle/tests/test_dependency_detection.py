@@ -129,6 +129,67 @@ class TestCargo(unittest.TestCase):
             self.assertEqual(len([d for d in deps if d["name"] == "serde"]), 1)
 
 
+class TestNpmWorkspaces(unittest.TestCase):
+    def test_npm_workspaces_array_form(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "package.json").write_text(
+                '{"workspaces": ["packages/*"], "dependencies": {"react": "^18"}}'
+            )
+            (root / "packages" / "a").mkdir(parents=True)
+            (root / "packages" / "a" / "package.json").write_text(
+                '{"dependencies": {"lodash": "^4"}}'
+            )
+            (root / "packages" / "b").mkdir(parents=True)
+            (root / "packages" / "b" / "package.json").write_text(
+                '{"dependencies": {"axios": "^1"}}'
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "npm"}
+            self.assertEqual(names, {"react", "lodash", "axios"})
+
+    def test_npm_workspaces_object_form(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "package.json").write_text(
+                '{"workspaces": {"packages": ["apps/*"]}, "dependencies": {"react": "^18"}}'
+            )
+            (root / "apps" / "web").mkdir(parents=True)
+            (root / "apps" / "web" / "package.json").write_text('{"dependencies": {"vue": "^3"}}')
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "npm"}
+            self.assertEqual(names, {"react", "vue"})
+
+    def test_pnpm_workspace_yaml(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "package.json").write_text('{"name": "mono"}')
+            (root / "pnpm-workspace.yaml").write_text("packages:\n  - apps/*\n  - libs/*\n")
+            (root / "apps" / "web").mkdir(parents=True)
+            (root / "apps" / "web" / "package.json").write_text('{"dependencies": {"vue": "^3"}}')
+            (root / "libs" / "ui").mkdir(parents=True)
+            (root / "libs" / "ui" / "package.json").write_text(
+                '{"dependencies": {"tailwindcss": "^3"}}'
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "npm"}
+            self.assertEqual(names, {"vue", "tailwindcss"})
+
+    def test_lerna_only_as_fallback(self):
+        """lerna.json is consulted only when neither workspaces nor pnpm-
+        workspace.yaml declared anything — modern Lerna uses npm workspaces."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "lerna.json").write_text('{"packages": ["modules/*"]}')
+            (root / "modules" / "x").mkdir(parents=True)
+            (root / "modules" / "x" / "package.json").write_text(
+                '{"dependencies": {"moment": "^2"}}'
+            )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "npm"}
+            self.assertEqual(names, {"moment"})
+
+
 class TestGoMod(unittest.TestCase):
     def test_require_block(self):
         content = (

@@ -75,6 +75,77 @@ def parse_package_json(content: str) -> list[dict]:
     return out
 
 
+def npm_workspace_patterns(root: Path) -> list[str]:
+    """Collect workspace member globs from any of the three JS monorepo
+    conventions:
+
+      - npm / yarn / yarn-berry: ``"workspaces"`` in root ``package.json``
+        (array form or ``{"packages": [...]}`` object form).
+      - pnpm: top-level ``packages:`` list in ``pnpm-workspace.yaml``.
+      - Legacy Lerna: ``packages`` in ``lerna.json`` (defaults to
+        ``["packages/*"]`` if missing). Only consulted when neither of the
+        above produced any patterns, to avoid double-counting on modern
+        Lerna setups that piggyback on the npm workspaces field.
+
+    Negation entries (``"!packages/legacy"``) are silently dropped — npm
+    supports them but full negation handling adds complexity for very little
+    real-world payoff.
+    """
+    patterns: list[str] = []
+
+    pkg = root / "package.json"
+    if pkg.is_file():
+        content = _safe_read(pkg)
+        if content is not None:
+            try:
+                data = json.loads(content)
+            except json.JSONDecodeError:
+                data = None
+            if isinstance(data, dict):
+                ws = data.get("workspaces")
+                if isinstance(ws, list):
+                    patterns.extend(p for p in ws if isinstance(p, str) and not p.startswith("!"))
+                elif isinstance(ws, dict):
+                    pkgs = ws.get("packages") or []
+                    if isinstance(pkgs, list):
+                        patterns.extend(
+                            p for p in pkgs if isinstance(p, str) and not p.startswith("!")
+                        )
+
+    pnpm = root / "pnpm-workspace.yaml"
+    if not pnpm.is_file():
+        pnpm = root / "pnpm-workspace.yml"
+    if pnpm.is_file():
+        content = _safe_read(pnpm)
+        if content is not None:
+            try:
+                import yaml  # already a project dep
+
+                data = yaml.safe_load(content) or {}
+            except (ImportError, Exception):
+                data = {}
+            if isinstance(data, dict):
+                pkgs = data.get("packages") or []
+                if isinstance(pkgs, list):
+                    patterns.extend(p for p in pkgs if isinstance(p, str) and not p.startswith("!"))
+
+    if not patterns:
+        lerna = root / "lerna.json"
+        if lerna.is_file():
+            content = _safe_read(lerna)
+            if content is not None:
+                try:
+                    data = json.loads(content)
+                except json.JSONDecodeError:
+                    data = None
+                if isinstance(data, dict):
+                    pkgs = data.get("packages") or ["packages/*"]
+                    if isinstance(pkgs, list):
+                        patterns.extend(p for p in pkgs if isinstance(p, str))
+
+    return patterns
+
+
 def parse_pyproject_toml(content: str) -> list[dict]:
     try:
         import tomllib  # py311+
@@ -356,40 +427,66 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
             if _absorb(parse_cargo_toml(content)):
                 return collected
 
+    # npm / yarn / pnpm / lerna workspaces: recurse into each member package.
+    npm_members = _resolve_workspace_manifests(root, npm_workspace_patterns(root), "package.json")
+    for member_path in npm_members:
+        content = _safe_read(member_path)
+        if content is None:
+            continue
+        if _absorb(parse_package_json(content)):
+            return collected
+
     return collected
 
 
-def _resolve_cargo_workspace_members(root: Path, root_content: str) -> list[Path]:
-    """Expand `workspace.members` patterns into a list of sub-Cargo.toml paths.
+# Per-project cap on how many workspace member manifests we'll walk into.
+# Each ecosystem reuses this — a runaway glob in someone's monorepo shouldn't
+# blow up the analyser.
+_WORKSPACE_MEMBERS_CAP = 200
 
-    Supports both plain paths (``"crates/foo"``) and glob patterns
-    (``"crates/*"``). Caps per-project crate count at 200 — a runaway
-    glob in someone's monorepo shouldn't blow up the analyser."""
-    patterns = cargo_workspace_members(root_content)
+
+def _resolve_workspace_manifests(root: Path, patterns: list[str], manifest_name: str) -> list[Path]:
+    """Generic workspace-pattern resolver. Used by cargo/npm/uv/composer flows.
+
+    For each pattern (plain path or glob like ``packages/*``), find the
+    matching directories under ``root`` and return any ``manifest_name`` file
+    inside them. Stays inside ``root`` (no `../` escape), caps at
+    ``_WORKSPACE_MEMBERS_CAP`` entries, sorts each glob's output deterministically.
+    """
     if not patterns:
         return []
     resolved: list[Path] = []
     for pattern in patterns:
-        # Plain path: just check the manifest exists.
-        if not any(ch in pattern for ch in "*?["):
-            manifest = root / pattern / "Cargo.toml"
-            if manifest.is_file():
-                resolved.append(manifest)
+        # Strip leading "./" — both cargo and npm allow it.
+        clean = pattern.lstrip("./") if pattern.startswith("./") else pattern
+        if not any(ch in clean for ch in "*?["):
+            manifest = root / clean / manifest_name
+            try:
+                if manifest.is_file() and manifest.resolve().is_relative_to(root.resolve()):
+                    resolved.append(manifest)
+            except (OSError, ValueError):
+                pass
             continue
-        # Glob: walk via Path.glob, then add the Cargo.toml inside each match.
         try:
-            matches = sorted(root.glob(pattern))
+            matches = sorted(root.glob(clean))
         except (OSError, ValueError):
             continue
         for match in matches:
             if not match.is_dir():
                 continue
-            manifest = match / "Cargo.toml"
-            if manifest.is_file():
-                resolved.append(manifest)
-        if len(resolved) >= 200:
+            manifest = match / manifest_name
+            try:
+                if manifest.is_file() and manifest.resolve().is_relative_to(root.resolve()):
+                    resolved.append(manifest)
+            except (OSError, ValueError):
+                continue
+        if len(resolved) >= _WORKSPACE_MEMBERS_CAP:
             break
-    return resolved[:200]
+    return resolved[:_WORKSPACE_MEMBERS_CAP]
+
+
+def _resolve_cargo_workspace_members(root: Path, root_content: str) -> list[Path]:
+    return _resolve_workspace_manifests(root, cargo_workspace_members(root_content), "Cargo.toml")
 
 
 def aggregate_by_name(per_project: Iterable[tuple[str, list[dict]]]) -> dict[str, list[str]]:
