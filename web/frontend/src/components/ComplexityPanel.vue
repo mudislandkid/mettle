@@ -36,12 +36,38 @@ function complexityLabel(c: number): string {
 
 <template>
   <div class="bg-white rounded-lg border border-slate-200 p-4 space-y-3 dark:bg-slate-900 dark:border-slate-700">
-    <div class="flex items-baseline justify-between">
-      <div>
+    <div class="flex items-baseline justify-between gap-3">
+      <div class="min-w-0">
         <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide dark:text-slate-100">Complexity hotspots</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400">McCabe cyclomatic complexity per Python function (top 30).</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+          Cyclomatic complexity counts the linearly-independent paths through a function — every
+          <code class="font-mono text-slate-600 dark:text-slate-300">if</code> /
+          <code class="font-mono text-slate-600 dark:text-slate-300">for</code> /
+          <code class="font-mono text-slate-600 dark:text-slate-300">while</code> /
+          <code class="font-mono text-slate-600 dark:text-slate-300">except</code> /
+          <code class="font-mono text-slate-600 dark:text-slate-300">and</code>/<code class="font-mono text-slate-600 dark:text-slate-300">or</code>
+          adds a branch. Higher = more paths to test and reason about. Top 30 Python functions shown.
+        </p>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[10.5px]">
+          <span class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded font-semibold tabular-nums bg-emerald-100 text-emerald-700">1–10</span>
+            <span class="text-slate-500 dark:text-slate-400">simple · low risk</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded font-semibold tabular-nums bg-amber-100 text-amber-700">11–20</span>
+            <span class="text-slate-500 dark:text-slate-400">moderate · review</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded font-semibold tabular-nums bg-orange-100 text-orange-700">21–50</span>
+            <span class="text-slate-500 dark:text-slate-400">complex · refactor</span>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded font-semibold tabular-nums bg-red-100 text-red-700">50+</span>
+            <span class="text-slate-500 dark:text-slate-400">untestable · break apart</span>
+          </span>
+        </div>
       </div>
-      <div class="text-xs text-slate-500 dark:text-slate-400">{{ functions.length }} captured</div>
+      <div class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ functions.length }} captured</div>
     </div>
 
     <div v-if="functions.length === 0" class="text-sm text-slate-500 py-4 text-center dark:text-slate-400">
