@@ -61,7 +61,15 @@ const {
 watch(projectId, loadProject, { immediate: true })
 
 function goBack() {
-  router.back()
+  // Navigate to the project's analysis explicitly. `router.back()` was
+  // unreliable — opening a project in a new tab (empty history) or via a
+  // deep link sent the user to the homepage instead of the parent analysis.
+  const analysisId = project.value?.analysis_id
+  if (analysisId) {
+    router.push({ name: 'analysis', query: { id: String(analysisId) } })
+  } else {
+    router.push({ name: 'analysis' })
+  }
 }
 </script>
 
