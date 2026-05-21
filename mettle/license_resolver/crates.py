@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from .http import RegistryClient
 from .spdx import normalize
+from .versions import concrete_version
 
 _REGISTRY = "https://crates.io/api/v1/crates"
 
@@ -19,12 +20,16 @@ class CratesResolver:
         self.client = client
 
     def resolve(self, name: str, version: str | None) -> tuple[str | None, str]:
-        if version:
-            url = f"{_REGISTRY}/{name}/{version}"
+        # Cargo versions in manifests are usually constraints (`^1.0`, `~2`).
+        # Only pass through when it looks like a specific release; otherwise
+        # hit the crate's index endpoint and take the newest non-yanked entry.
+        concrete = concrete_version(version)
+        if concrete:
+            url = f"{_REGISTRY}/{name}/{concrete}"
         else:
             url = f"{_REGISTRY}/{name}"
         payload = self.client.get_json(url)
-        return self._parse(payload, has_version=bool(version)), "crates"
+        return self._parse(payload, has_version=bool(concrete)), "crates"
 
     @staticmethod
     def _parse(payload: dict | None, has_version: bool = False) -> str | None:

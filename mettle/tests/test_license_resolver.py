@@ -24,6 +24,7 @@ from mettle.license_resolver.spdx import (
     is_copyleft,
     normalize,
 )
+from mettle.license_resolver.versions import concrete_version
 
 # ─── SPDX normaliser ───────────────────────────────────────────────────────
 
@@ -78,6 +79,38 @@ def test_copyleft_sets_are_disjoint():
 )
 def test_is_copyleft(spdx, expected):
     assert is_copyleft(spdx) == expected
+
+
+# ─── Version constraint stripper ───────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("1.2.3", "1.2.3"),
+        ("v1.0", "v1.0"),
+        ("0.115.0", "0.115.0"),
+        ("18.2.0-rc.1", "18.2.0-rc.1"),
+        ("1.0.0+build.42", "1.0.0+build.42"),
+        # Constraints — must fall back to latest.
+        (">=0.115", None),
+        ("^18.2.0", None),
+        ("~1.0", None),
+        ("==2.31", None),
+        ("!=1.0", None),
+        (">=1, <3", None),
+        ("*", None),
+        ("1.0.*", None),
+        ("workspace:*", None),
+        ("@scope/pkg@1.0", None),
+        ("file:./local", None),
+        ("git+https://...", None),
+        (None, None),
+        ("", None),
+    ],
+)
+def test_concrete_version(raw, expected):
+    assert concrete_version(raw) == expected
 
 
 # ─── Per-registry parsers ──────────────────────────────────────────────────
@@ -195,6 +228,44 @@ def test_resolve_all_uses_cache_for_repeats(tmp_path):
         ("flask", "BSD-3-Clause"),
     ]
     assert client2.calls == []
+
+
+def test_constraint_versions_hit_latest_endpoint(tmp_path):
+    """A dep declared as `fastapi>=0.115` must NOT be sent to
+    `/pypi/fastapi/>=0.115/json` — the registry returns 404. The resolver
+    should fall back to the registry's latest endpoint."""
+    cache = LicenseCache(path=tmp_path / "lic.sqlite3")
+    client = _FakeClient(
+        {
+            # PyPI: latest endpoint (no version segment).
+            "https://pypi.org/pypi/fastapi/json": {"info": {"license_expression": "MIT"}},
+            # npm: /latest tag.
+            "https://registry.npmjs.org/react/latest": {"license": "MIT"},
+            # crates.io: index endpoint (no version segment).
+            "https://crates.io/api/v1/crates/serde": {
+                "versions": [{"license": "Apache-2.0", "yanked": False}]
+            },
+        }
+    )
+    deps = [
+        {"name": "fastapi", "version": ">=0.115", "manager": "pypi"},
+        {"name": "react", "version": "^18.2.0", "manager": "npm"},
+        {"name": "serde", "version": "1.0", "manager": "cargo"},  # "1.0" is concrete
+        {"name": "serde-other", "version": "~2", "manager": "cargo"},  # "~2" is constraint
+    ]
+    # Also wire up the concrete cargo URL for serde@1.0.
+    client.payloads["https://crates.io/api/v1/crates/serde/1.0"] = {"version": {"license": "MIT"}}
+    client.payloads["https://crates.io/api/v1/crates/serde-other"] = {
+        "versions": [{"license": "MIT", "yanked": False}]
+    }
+    out = resolve_all(deps, cache=cache, client=client)
+    spdx_by_name = {r.name: r.spdx for r in out}
+    assert spdx_by_name["fastapi"] == "MIT"
+    assert spdx_by_name["react"] == "MIT"
+    assert spdx_by_name["serde"] == "MIT"  # concrete version path
+    assert spdx_by_name["serde-other"] == "MIT"  # constraint -> latest
+    # The constraint must NOT have been pasted into the URL.
+    assert all(">=" not in u and "^" not in u and "~" not in u for u in client.calls)
 
 
 def test_resolve_all_unsupported_manager_stays_unresolved(tmp_path):

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from .http import RegistryClient
 from .spdx import normalize
+from .versions import concrete_version
 
 _REGISTRY = "https://pypi.org/pypi"
 
@@ -44,7 +45,11 @@ class PyPiResolver:
         self.client = client
 
     def resolve(self, name: str, version: str | None) -> tuple[str | None, str]:
-        url = f"{_REGISTRY}/{name}/{version}/json" if version else f"{_REGISTRY}/{name}/json"
+        # Manifest version is typically a PEP 508 constraint (`>=0.115`,
+        # `~=2.1`). Only pass it through when it looks like a specific
+        # release; otherwise hit the registry's catch-all (latest) endpoint.
+        concrete = concrete_version(version)
+        url = f"{_REGISTRY}/{name}/{concrete}/json" if concrete else f"{_REGISTRY}/{name}/json"
         payload = self.client.get_json(url)
         return self._parse(payload), "pypi"
 

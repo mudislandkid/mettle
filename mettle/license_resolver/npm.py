@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from .http import RegistryClient
 from .spdx import normalize
+from .versions import concrete_version
 
 _REGISTRY = "https://registry.npmjs.org"
 
@@ -21,8 +22,11 @@ class NpmResolver:
         self.client = client
 
     def resolve(self, name: str, version: str | None) -> tuple[str | None, str]:
-        # Versionless: ask the registry for "latest". Better than guessing.
-        url = f"{_REGISTRY}/{name}/{version}" if version else f"{_REGISTRY}/{name}/latest"
+        # Manifest version is usually a constraint (`^18.2.0`, `~1`). Only
+        # pass it through when it looks like a specific release; otherwise
+        # ask the registry for "latest".
+        concrete = concrete_version(version)
+        url = f"{_REGISTRY}/{name}/{concrete}" if concrete else f"{_REGISTRY}/{name}/latest"
         payload = self.client.get_json(url)
         return self._parse(payload), "npm"
 
