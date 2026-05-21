@@ -182,20 +182,31 @@ New items captured after the initial backlog was cleared. Status `proposed` unti
 
 | # | Title | Type | Effort | Status |
 |---|-------|------|--------|--------|
-| 24 | Dependency license compliance | Feature | L | **proposed** |
-| 25 | Proprietary-project flag (suppress missing-license risk) | Feature | S | **proposed** |
+| 24 | Dependency license compliance | Feature | L | **done (2026-05-21)** |
+| 25 | Proprietary-project flag (suppress missing-license risk) | Feature | S | **done (2026-05-21)** |
 
-### 24. Dependency license compliance
-**Why:** The current license detector only answers "did *this* repo declare its own license?" — it says nothing about whether the FOSS dependencies you've pulled in are compatible with how you're shipping. Real-world risk: shipping AGPL code from a transitive dep inside a proprietary product, or missing required NOTICES/attribution.
+### 24. Dependency license compliance — done 2026-05-21
+**Why:** The current license detector only answers "did *this* repo declare its own license?" — it says nothing about whether the FOSS dependencies you've pulled in are compatible with how you're shipping.
 
-**Sketch:** Walk each detected dependency manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, `go.mod`, `composer.json`) and resolve each name → SPDX license via the registry's metadata API (npm registry, PyPI JSON API, crates.io, etc.). Cache results in SQLite keyed by `(manager, name, version)` since they're effectively immutable. Persist per-project: list of `(name, version, license, source)` and an aggregate "license bill of materials." Risk signal: dependencies with copyleft licenses (GPL family) when the project itself is declared proprietary, or unknown/unresolvable licenses. Optional: generate a NOTICES.md attribution file. Heavy lift — network fetches, rate limits, cache invalidation. Probably v2 territory.
+**Shipped:** New `mettle/license_resolver/` package with one module per registry (`npm.py`, `pypi.py`, `crates.py`), a stdlib-only HTTP client (`http.py`), a `LicenseCache` SQLite store keyed by `(manager, name, version)`, and a `runner.resolve_project()` aggregator that produces the per-project SBOM + summary + risk flag. Concurrency via a 6-thread `ThreadPoolExecutor`; cache file at `$XDG_CACHE_HOME/mettle/license_cache.sqlite3`.
 
-### 25. Proprietary-project flag
-**Why:** Closed-source projects often have no LICENSE file by design (default copyright is what you want for proprietary code), but Mettle currently flags them as "Missing license" and dings the health score. False positive for the entire proprietary-project case.
+New columns on `Project` (migration `0005_dependency_licenses`): `dependency_licenses` (JSON list), `dependency_license_summary` (JSON aggregate — `resolved` / `unresolved` / `by_spdx` / `copyleft_strong` / `copyleft_weak`), and a denormalised, indexed `has_license_risk` boolean. The risk flag fires when a project ships any **strong copyleft** dep (GPL/AGPL) under a proprietary status (`proprietary` flag OR no detected `license_spdx`).
 
-**Sketch:** Add `proprietary` to the existing flag enum (alongside `archived`, `wip`, `production`, etc.) so it persists per-project path across re-analyses. When set:
-- The "Missing license" risk signal excludes that project from its count.
-- The health score's license component scores it as satisfied.
-- License column in the project table shows "Proprietary" instead of "—".
+Trigger points are explicit so default analysis stays offline:
+- `POST /api/projects/{id}/resolve-licenses` — synchronous endpoint used by the new `DependencyLicensePanel.vue` on the project detail page. Panel shows resolved-vs-unresolved counts, per-SPDX tally chips (strong copyleft in rose, weak in amber), unresolved package names, and a rose banner when `has_license_risk` is true.
+- `mettle resolve-licenses <path>` / `--all` — CLI subcommand for after-the-fact resolution against the latest snapshot in `mettle.db`.
 
-Bulk-flag UI already exists, so marking 18 gentlewatch sub-repos at once is one click. Suggested companion: a tooltip on the "Missing license" badge explaining that `proprietary` is a valid alternative to dropping an SPDX LICENSE file.
+Summary hero gets a new "License risk" row that counts `has_license_risk` projects.
+
+Scope decisions kept honest in the spec — npm/PyPI/crates only (covers Greg's stack); Go/Composer/RubyGems deferred (no clean license API for Go, low ROI for the other two on this codebase); transitive deps and the NOTICES.md generator postponed. 14 unit tests for the resolver + 2 integration tests for the API route. Full suite at 264 backend+mettle tests green.
+
+### 25. Proprietary-project flag — done 2026-05-21
+**Why:** Closed-source projects often have no LICENSE file by design (default copyright is what you want for proprietary code), but Mettle currently flags them as "Missing license". False positive for the entire proprietary-project case.
+
+**Shipped:** Added `proprietary` to `FLAG_TYPES` / `FLAG_LABELS` / `FLAG_COLORS` in `web/backend/database/models.py` (slate tone — neutral, not alarming). New `web/frontend/src/lib/license.ts` helper exposes `isMissingLicense(p)` and `isProprietary(p)`, used by:
+- `SummaryHero.vue` — "Missing license" count excludes proprietary-flagged projects.
+- `ProjectTable.vue` — `noLicense` filter chip and its count both exclude proprietary projects.
+- `RiskBadges.vue` — per-row `no license` badge doesn't render when proprietary; existing tooltip updated to tell first-time readers about the `proprietary` flag as the closed-source-by-design alternative.
+- `ProjectTableRow.vue` — License column shows a `Proprietary` chip (slate, distinct from the SPDX chip) instead of `—`.
+
+Health score's `_metadata_score` doesn't penalize missing license, so no change needed there. 2 new tests in `web/backend/tests/test_proprietary_flag.py` (constants are registered, flag round-trips through `POST /api/projects/bulk/flags`). No DB migration — `project_flags` is a key/value join table, so adding a new string value is purely additive. Bulk-flag UI already exists, so marking 18 gentlewatch sub-repos at once is one click.

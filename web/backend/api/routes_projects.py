@@ -102,6 +102,9 @@ def get_project_response(project: Project, session: Session | None = None) -> Pr
         secrets_found=project.secrets_found,
         secrets_detail=project.secrets_detail,
         license_spdx=project.license_spdx,
+        dependency_licenses=project.dependency_licenses,
+        dependency_license_summary=project.dependency_license_summary,
+        has_license_risk=project.has_license_risk,
         notes=notes,
         flags=flags,
         tags=tags,
@@ -241,6 +244,43 @@ async def update_project_flags(
         flag = ProjectFlag(project_id=project_id, flag_type=flag_type)
         session.add(flag)
 
+    session.commit()
+    session.refresh(project)
+
+    return get_project_response(project, session)
+
+
+@router.post("/{project_id}/resolve-licenses", response_model=ProjectResponse)
+async def resolve_project_licenses(
+    project_id: int,
+    session: Session = Depends(get_session),
+):
+    """Resolve SPDX licenses for the project's declared dependencies via the
+    registry APIs and persist the result. Synchronous — typical wall-clock is
+    a few seconds for first-time runs and ~instant for cache hits."""
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from mettle.license_resolver.runner import resolve_project
+
+    deps = list(project.dependencies or [])
+    flags = [f.flag_type for f in project.flags]
+    try:
+        license_list, summary, has_risk = resolve_project(
+            deps,
+            project_license_spdx=project.license_spdx,
+            project_flags=flags,
+        )
+    except Exception as e:
+        # Resolver should never raise to here — runner swallows registry
+        # errors per-dep. If we still land here it's a programmer error.
+        raise HTTPException(status_code=500, detail=f"resolver failed: {e}") from e
+
+    project.dependency_licenses = license_list
+    project.dependency_license_summary = summary
+    project.has_license_risk = has_risk
+    session.add(project)
     session.commit()
     session.refresh(project)
 

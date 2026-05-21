@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { TONE, healthBucket } from '@/lib/tone'
 import { fmtNum, fmtNumExact } from '@/lib/format'
+import { isMissingLicense } from '@/lib/license'
 import type { Analysis } from '@/types'
 
 const props = defineProps<{
@@ -62,7 +63,7 @@ const staleCount = computed(() =>
   }).length
 )
 const missingLicenseCount = computed(() =>
-  props.analysis.projects.filter((p) => !p.license_spdx).length
+  props.analysis.projects.filter(isMissingLicense).length
 )
 const totalTodos = computed(() =>
   props.analysis.projects.reduce((s, p) => s + (p.todos ?? 0), 0)
@@ -70,16 +71,21 @@ const totalTodos = computed(() =>
 const totalSecrets = computed(() =>
   props.analysis.projects.reduce((s, p) => s + (p.secrets_found ?? 0), 0)
 )
+const licenseRiskCount = computed(() =>
+  props.analysis.projects.filter((p) => p.has_license_risk).length
+)
 
 const riskRows = computed((): Array<{ label: string; n: number; tone: import('@/lib/tone').Tone }> => {
   const secretsTone: import('@/lib/tone').Tone  = totalSecrets.value > 0 ? 'rose' : 'slate'
   const staleTone: import('@/lib/tone').Tone    = staleCount.value > 0 ? 'orange' : 'slate'
   const licenseTone: import('@/lib/tone').Tone  = missingLicenseCount.value > 0 ? 'indigo' : 'slate'
+  const riskTone: import('@/lib/tone').Tone     = licenseRiskCount.value > 0 ? 'rose' : 'slate'
   return [
     { label: 'TODOs',           n: totalTodos.value,          tone: 'amber'       },
     { label: 'Secrets',         n: totalSecrets.value,        tone: secretsTone   },
     { label: 'Stale',           n: staleCount.value,          tone: staleTone     },
     { label: 'Missing license', n: missingLicenseCount.value, tone: licenseTone   },
+    { label: 'License risk',    n: licenseRiskCount.value,    tone: riskTone      },
   ]
 })
 

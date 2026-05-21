@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { TONE } from '@/lib/tone'
+import { isMissingLicense } from '@/lib/license'
 import type { Project } from '@/types'
 
 const props = defineProps<{
@@ -13,7 +14,7 @@ const todoTone = computed(() =>
 
 const hasTodos   = computed(() => (props.project.todos ?? 0) > 0)
 const hasSecrets = computed(() => (props.project.secrets_found ?? 0) > 0)
-const noLicense  = computed(() => !props.project.license_spdx)
+const noLicense  = computed(() => isMissingLicense(props.project))
 const isEmpty    = computed(() => !hasTodos.value && !hasSecrets.value && !noLicense.value)
 </script>
 
@@ -52,7 +53,7 @@ const isEmpty    = computed(() => !hasTodos.value && !hasSecrets.value && !noLic
       v-if="noLicense"
       class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded ring-1 ring-inset"
       :class="[TONE.indigo.bg, TONE.indigo.text, TONE.indigo.ring]"
-      title="No SPDX license detected"
+      title="No SPDX license detected. Tip: mark this project Proprietary (flags) if it's closed-source by design."
     >
       <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/>

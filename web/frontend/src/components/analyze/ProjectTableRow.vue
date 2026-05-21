@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fmtRelative, fmtCalendar } from '@/lib/format'
+import { isProprietary } from '@/lib/license'
 import type { Project } from '@/types'
 import LangPills from './LangPills.vue'
 import HealthBar from './HealthBar.vue'
@@ -83,11 +84,16 @@ function activityDate(iso: string | null | undefined): string {
 
     <!-- License -->
     <td class="px-3 py-3 align-middle">
-      <span v-if="!project.license_spdx" class="text-[11px] text-slate-600">—</span>
       <span
-        v-else
+        v-if="project.license_spdx"
         class="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-mono text-slate-300 bg-slate-800/70 ring-1 ring-inset ring-slate-700"
       >{{ project.license_spdx }}</span>
+      <span
+        v-else-if="isProprietary(project)"
+        class="inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] text-slate-300 bg-slate-700/40 ring-1 ring-inset ring-slate-600"
+        title="Marked proprietary — closed-source by design"
+      >Proprietary</span>
+      <span v-else class="text-[11px] text-slate-600">—</span>
     </td>
 
     <!-- Chevron -->

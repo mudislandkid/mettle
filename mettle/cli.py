@@ -192,6 +192,80 @@ def check(
     sys.exit(run_check_mode(ns))
 
 
+# --------------------------------------------------------- resolve-licenses
+@cli.command("resolve-licenses")
+@click.argument("path", required=False)
+@click.option(
+    "--all",
+    "all_projects",
+    is_flag=True,
+    help="Resolve every project in the database (latest snapshot per path) instead of one.",
+)
+def resolve_licenses(path: str | None, all_projects: bool) -> None:
+    """Resolve dependency SPDX licenses for PATH using the registry APIs.
+
+    Reads the latest Project row for PATH from the Mettle database, runs the
+    resolver against its detected dependencies, writes back the resolved
+    licenses + risk flag. Use --all to resolve every project at once.
+    """
+    if not path and not all_projects:
+        raise click.BadParameter("Pass PATH or --all.")
+
+    from sqlmodel import Session, select
+
+    from mettle.license_resolver.runner import resolve_project as _resolve_project
+    from web.backend.database.connection import engine, run_migrations
+    from web.backend.database.models import Project
+
+    run_migrations()
+    targets: list[int] = []
+    with Session(engine) as session:
+        if all_projects:
+            # Latest snapshot per path: highest analysis_id wins.
+            rows = session.exec(
+                select(Project).order_by(Project.path, Project.analysis_id.desc())  # type: ignore[union-attr]
+            ).all()
+            seen_paths: set[str] = set()
+            for p in rows:
+                if p.path in seen_paths:
+                    continue
+                seen_paths.add(p.path)
+                targets.append(p.id)
+        else:
+            row = session.exec(
+                select(Project).where(Project.path == path).order_by(Project.analysis_id.desc())  # type: ignore[union-attr]
+            ).first()
+            if row is None:
+                click.echo(f"No project found for path: {path}", err=True)
+                sys.exit(1)
+            targets.append(row.id)
+
+        click.echo(f"Resolving licenses for {len(targets)} project(s)...")
+        for pid in targets:
+            project = session.get(Project, pid)
+            if project is None:
+                continue
+            deps = list(project.dependencies or [])
+            flags = [f.flag_type for f in project.flags]
+            licenses, summary, has_risk = _resolve_project(
+                deps,
+                project_license_spdx=project.license_spdx,
+                project_flags=flags,
+            )
+            project.dependency_licenses = licenses
+            project.dependency_license_summary = summary
+            project.has_license_risk = has_risk
+            session.add(project)
+            badge = " [risk]" if has_risk else ""
+            click.echo(
+                f"  {project.name}: {summary['resolved']} resolved, "
+                f"{summary['unresolved']} unresolved, "
+                f"{summary['copyleft_strong']} strong copyleft{badge}"
+            )
+        session.commit()
+    click.echo("Done.")
+
+
 # ----------------------------------------------------------------- web
 @cli.command()
 @click.option("--mode", type=click.Choice(["dev", "prod", "backend-only"]), default="dev")

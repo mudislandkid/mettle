@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { TONE } from '@/lib/tone'
+import { isMissingLicense } from '@/lib/license'
 import type { Project } from '@/types'
 import ProjectTableRow from './ProjectTableRow.vue'
 
@@ -63,7 +64,7 @@ const counts = computed(() => ({
   stale:      props.projects.filter(isStale).length,
   lowHealth:  props.projects.filter((p) => p.health_score < 60).length,
   hasSecrets: props.projects.filter((p) => (p.secrets_found ?? 0) > 0).length,
-  noLicense:  props.projects.filter((p) => !p.license_spdx).length,
+  noLicense:  props.projects.filter(isMissingLicense).length,
   noTests:    props.projects.filter((p) => (p.test_percentage ?? 0) < 1).length,
 }))
 
@@ -81,7 +82,7 @@ const filtered = computed(() => {
   if (activeFilters.value.stale)      arr = arr.filter(isStale)
   if (activeFilters.value.lowHealth)  arr = arr.filter((p) => p.health_score < 60)
   if (activeFilters.value.hasSecrets) arr = arr.filter((p) => (p.secrets_found ?? 0) > 0)
-  if (activeFilters.value.noLicense)  arr = arr.filter((p) => !p.license_spdx)
+  if (activeFilters.value.noLicense)  arr = arr.filter(isMissingLicense)
   if (activeFilters.value.noTests)    arr = arr.filter((p) => (p.test_percentage ?? 0) < 1)
 
   arr.sort((a, b) => {

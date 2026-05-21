@@ -64,6 +64,27 @@ export interface Project {
   secrets_found: number
   secrets_detail: SecretMatch[] | null
   license_spdx: string | null
+  // Dependency license compliance (#24). `dependency_licenses` is null until
+  // POST /api/projects/{id}/resolve-licenses has run for this project.
+  dependency_licenses: DependencyLicense[] | null
+  dependency_license_summary: DependencyLicenseSummary | null
+  has_license_risk: boolean
+}
+
+export interface DependencyLicense {
+  name: string
+  version: string | null
+  manager: string
+  spdx: string | null
+  source: string
+}
+
+export interface DependencyLicenseSummary {
+  resolved: number
+  unresolved: number
+  by_spdx: Record<string, number>
+  copyleft_strong: number
+  copyleft_weak: number
 }
 
 export interface TodoItem {

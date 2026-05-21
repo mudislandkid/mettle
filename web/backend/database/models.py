@@ -88,6 +88,16 @@ class Project(SQLModel, table=True):
     secrets_found: int = Field(default=0)
     secrets_detail: list | None = Field(default=None, sa_column=Column(JSON))
     license_spdx: str | None = Field(default=None, index=True)
+    # Dependency license compliance (0005_dependency_licenses migration).
+    # `dependency_licenses` is a list of {name, version, manager, spdx, source}.
+    # `dependency_license_summary` is the denormalised aggregate (counts by
+    # SPDX, copyleft counts) used by the project-detail panel.
+    # `has_license_risk` is denormalised so the analyze view can count without
+    # scanning JSON; true iff any copyleft-strong dep ships under proprietary
+    # status (proprietary flag or no license_spdx).
+    dependency_licenses: list | None = Field(default=None, sa_column=Column(JSON))
+    dependency_license_summary: dict | None = Field(default=None, sa_column=Column(JSON))
+    has_license_risk: bool = Field(default=False, index=True)
 
     # Relationships
     analysis: Analysis | None = Relationship(back_populates="projects")
@@ -210,6 +220,7 @@ FLAG_TYPES = [
     "fork",
     "deprecated",
     "production",
+    "proprietary",
 ]
 
 FLAG_LABELS = {
@@ -221,6 +232,7 @@ FLAG_LABELS = {
     "fork": "Fork",
     "deprecated": "Deprecated",
     "production": "Production",
+    "proprietary": "Proprietary",
 }
 
 FLAG_COLORS = {
@@ -232,4 +244,5 @@ FLAG_COLORS = {
     "fork": "#f97316",  # Orange
     "deprecated": "#ef4444",  # Red
     "production": "#10b981",  # Emerald
+    "proprietary": "#64748b",  # Slate
 }

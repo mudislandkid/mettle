@@ -8,6 +8,7 @@ import ProjectNotesEditor from '@/components/ProjectNotesEditor.vue'
 import HealthBreakdownPanel from '@/components/HealthBreakdownPanel.vue'
 import TodoInspector from '@/components/TodoInspector.vue'
 import DependencyPanel from '@/components/DependencyPanel.vue'
+import DependencyLicensePanel from '@/components/DependencyLicensePanel.vue'
 import ComplexityPanel from '@/components/ComplexityPanel.vue'
 import GitStatsContainer from '@/components/GitStats/GitStatsContainer.vue'
 import type { Project } from '@/types'
@@ -146,6 +147,9 @@ function goBack() {
 
       <!-- Dependencies -->
       <DependencyPanel :dependencies="project.dependencies || []" />
+
+      <!-- Dependency license compliance -->
+      <DependencyLicensePanel :project="project" @updated="(p) => (project = p)" />
 
       <!-- Complexity hotspots -->
       <ComplexityPanel

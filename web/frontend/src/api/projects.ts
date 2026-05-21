@@ -43,6 +43,12 @@ export async function refreshProjectAnalysis(id: number): Promise<Project> {
   })
 }
 
+export async function resolveProjectLicenses(id: number): Promise<Project> {
+  return fetchApi(`/projects/${id}/resolve-licenses`, {
+    method: 'POST',
+  })
+}
+
 export async function updateProjectFlags(
   projectId: number,
   flags: string[]

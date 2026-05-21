@@ -98,6 +98,11 @@ class ProjectResponse(BaseModel):
     secrets_found: int = 0
     secrets_detail: list[dict] | None = None
     license_spdx: str | None = None
+    # Dependency license compliance (0005). `null` until --resolve-licenses
+    # has been run for this project.
+    dependency_licenses: list[dict] | None = None
+    dependency_license_summary: dict | None = None
+    has_license_risk: bool = False
     notes: str = ""
     flags: list[str] = []
     tags: list[TagResponse] = []
