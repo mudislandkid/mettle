@@ -146,20 +146,27 @@ def npm_workspace_patterns(root: Path) -> list[str]:
     return patterns
 
 
-def parse_pyproject_toml(content: str) -> list[dict]:
+def _pyproject_load(content: str) -> dict | None:
     try:
         import tomllib  # py311+
     except ImportError:  # pragma: no cover
         try:
             import tomli as tomllib  # type: ignore
         except ImportError:
-            return []
+            return None
     try:
-        data = tomllib.loads(content)
+        return tomllib.loads(content)
     except Exception:
+        return None
+
+
+def parse_pyproject_toml(content: str) -> list[dict]:
+    data = _pyproject_load(content)
+    if data is None:
         return []
     out: list[dict] = []
-    # PEP 621 style: [project] dependencies = ["foo", "bar>=1"]
+
+    # PEP 621: [project] dependencies = ["foo", "bar>=1"]
     project = data.get("project") if isinstance(data, dict) else None
     if isinstance(project, dict):
         deps = project.get("dependencies")
@@ -172,31 +179,133 @@ def parse_pyproject_toml(content: str) -> list[dict]:
                 if isinstance(spec_list, list):
                     for d in spec_list:
                         _push_pep508(out, d)
-    # Poetry style: [tool.poetry.dependencies] / [tool.poetry.dev-dependencies]
+
+    # PEP 735: top-level [dependency-groups]. Each value is a list of PEP 508
+    # strings OR `{include-group = "other"}` tables. We ignore the include
+    # tables — they're cross-references, not deps.
+    dep_groups = data.get("dependency-groups") if isinstance(data, dict) else None
+    if isinstance(dep_groups, dict):
+        for group in dep_groups.values():
+            if not isinstance(group, list):
+                continue
+            for entry in group:
+                if isinstance(entry, str):
+                    _push_pep508(out, entry)
+
     tool = data.get("tool") if isinstance(data, dict) else None
     if isinstance(tool, dict):
+        # Poetry: legacy [tool.poetry.dependencies] / dev-dependencies, plus
+        # modern [tool.poetry.group.<name>.dependencies] (Poetry 1.2+).
         poetry = tool.get("poetry")
         if isinstance(poetry, dict):
             for section in ("dependencies", "dev-dependencies"):
-                deps = poetry.get(section)
-                if not isinstance(deps, dict):
-                    continue
-                for name, version in deps.items():
-                    if not isinstance(name, str):
-                        continue
-                    if name.lower() == "python":
-                        continue
-                    out.append(
-                        {
-                            "name": name,
-                            "version": _normalize(
-                                version if not isinstance(version, dict) else version.get("version")
-                            ),
-                            "manager": "pypi",
-                        }
-                    )
-                    if len(out) >= _DEPS_PER_MANIFEST:
-                        return out
+                _absorb_poetry_dep_table(out, poetry.get(section))
+            groups = poetry.get("group")
+            if isinstance(groups, dict):
+                for grp in groups.values():
+                    if isinstance(grp, dict):
+                        _absorb_poetry_dep_table(out, grp.get("dependencies"))
+
+        # PDM dev dependencies: [tool.pdm.dev-dependencies] is a dict of
+        # `{group_name: [pep508 strings]}` (same shape as PEP 735 groups).
+        pdm = tool.get("pdm")
+        if isinstance(pdm, dict):
+            pdm_dev = pdm.get("dev-dependencies")
+            if isinstance(pdm_dev, dict):
+                for group in pdm_dev.values():
+                    if isinstance(group, list):
+                        for entry in group:
+                            if isinstance(entry, str):
+                                _push_pep508(out, entry)
+
+    return out
+
+
+def _absorb_poetry_dep_table(out: list[dict], table: object) -> None:
+    """Poetry dependency tables map `{name: spec}` where `spec` is a version
+    string or an inline table like `{version = "...", extras = [...]}`.
+    Skips the `python` entry (it's a Python version constraint, not a dep)."""
+    if not isinstance(table, dict):
+        return
+    for name, version in table.items():
+        if not isinstance(name, str):
+            continue
+        if name.lower() == "python":
+            continue
+        if isinstance(version, dict):
+            version = version.get("version")
+        out.append({"name": name, "version": _normalize(version), "manager": "pypi"})
+        if len(out) >= _DEPS_PER_MANIFEST:
+            return
+
+
+def uv_workspace_patterns(content: str) -> tuple[list[str], list[str]]:
+    """Return `(members, exclude)` from `[tool.uv.workspace]`. The uv
+    workspace spec mirrors cargo's: `members` is a list of glob/path strings,
+    `exclude` is a list to drop from the resolved set."""
+    data = _pyproject_load(content)
+    if data is None:
+        return [], []
+    ws = ((data.get("tool") or {}).get("uv") or {}).get("workspace") or {}
+    if not isinstance(ws, dict):
+        return [], []
+    members = [m for m in (ws.get("members") or []) if isinstance(m, str)]
+    exclude = [m for m in (ws.get("exclude") or []) if isinstance(m, str)]
+    return members, exclude
+
+
+def parse_pipfile(content: str) -> list[dict]:
+    """Parse a Pipfile (pipenv). Reads `[packages]` and `[dev-packages]`.
+
+    Values may be a plain version spec (`"*"` for any) or an inline table
+    `{version = "..."}`. `"*"` is treated as no version constraint."""
+    data = _pyproject_load(content)
+    if data is None:
+        return []
+    out: list[dict] = []
+    for section in ("packages", "dev-packages"):
+        d = data.get(section) if isinstance(data, dict) else None
+        if not isinstance(d, dict):
+            continue
+        for name, v in d.items():
+            if not isinstance(name, str):
+                continue
+            ver = v if not isinstance(v, dict) else v.get("version")
+            if ver == "*":
+                ver = None
+            out.append({"name": name, "version": _normalize(ver), "manager": "pypi"})
+            if len(out) >= _DEPS_PER_MANIFEST:
+                return out
+    return out
+
+
+def parse_setup_cfg(content: str) -> list[dict]:
+    """Parse a setuptools setup.cfg. Reads `[options] install_requires` and
+    every key under `[options.extras_require]`. Pure declarative INI — safe
+    to parse without executing anything (unlike setup.py)."""
+    import configparser
+    import io
+
+    cp = configparser.ConfigParser()
+    try:
+        cp.read_file(io.StringIO(content))
+    except configparser.Error:
+        return []
+    out: list[dict] = []
+    blocks: list[str] = []
+    if cp.has_option("options", "install_requires"):
+        blocks.append(cp.get("options", "install_requires"))
+    if cp.has_section("options.extras_require"):
+        for key in cp.options("options.extras_require"):
+            blocks.append(cp.get("options.extras_require", key))
+    for block in blocks:
+        for line in block.splitlines():
+            spec = line.strip()
+            if not spec:
+                continue
+            _push_pep508(out, spec)
+            if len(out) >= _DEPS_PER_MANIFEST:
+                return out
     return out
 
 
@@ -217,19 +326,73 @@ def _push_pep508(out: list[dict], spec: object) -> None:
     out.append({"name": name, "version": _normalize(rest or None), "manager": "pypi"})
 
 
-def parse_requirements_txt(content: str) -> list[dict]:
+_MAX_REQUIREMENTS_INCLUDES = 20
+
+
+def parse_requirements_txt(
+    content: str,
+    *,
+    _base: Path | None = None,
+    _visited: set[Path] | None = None,
+) -> list[dict]:
+    """Parse a requirements file. When ``_base`` is given, ``-r path`` /
+    ``--requirement path`` directives are resolved relative to it and followed
+    once each, with cycle protection. ``-c`` (constraints), ``-e`` (editable),
+    and any other ``--option`` lines are skipped."""
     out: list[dict] = []
+    visited: set[Path] = _visited if _visited is not None else set()
     for line in content.splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
-            # `-r other.txt`, `--extra-index-url ...`, comments — skip.
+        if not stripped or stripped.startswith("#"):
             continue
-        # `pkg==1.2.3` / `pkg>=1` / `pkg @ git+https://...` / `pkg`
-        head = stripped.split("#", 1)[0].strip()  # strip inline comments
+        # Follow `-r other.txt` / `--requirement other.txt` when we know the
+        # base dir and haven't blown the include budget.
+        if _base is not None and (
+            stripped.startswith("-r ") or stripped.startswith("--requirement ")
+        ):
+            if len(visited) >= _MAX_REQUIREMENTS_INCLUDES:
+                continue
+            target = stripped.split(None, 1)[1].split("#", 1)[0].strip()
+            if not target:
+                continue
+            try:
+                ref = (_base / target).resolve()
+            except (OSError, ValueError):
+                continue
+            if not ref.is_file() or ref in visited:
+                continue
+            visited.add(ref)
+            nested = _safe_read(ref)
+            if nested is None:
+                continue
+            for dep in parse_requirements_txt(nested, _base=ref.parent, _visited=visited):
+                out.append(dep)
+                if len(out) >= _DEPS_PER_MANIFEST:
+                    return out
+            continue
+        if stripped.startswith("-"):
+            # -c constraints, -e editable, --extra-index-url etc. — not deps.
+            continue
+        head = stripped.split("#", 1)[0].strip()
         _push_pep508(out, head)
         if len(out) >= _DEPS_PER_MANIFEST:
             return out
     return out
+
+
+def _discover_requirements_files(root: Path) -> list[Path]:
+    """Find `requirements*.txt` at root and `requirements/*.txt` one level
+    deep. No deeper — the convention is well-bounded."""
+    files: list[Path] = []
+    for candidate in sorted(root.glob("requirements*.txt")):
+        if candidate.is_file():
+            files.append(candidate)
+    sub = root / "requirements"
+    if sub.is_dir():
+        for candidate in sorted(sub.glob("*.txt")):
+            if candidate.is_file():
+                files.append(candidate)
+    return files[:_MAX_REQUIREMENTS_INCLUDES]
 
 
 def _cargo_load(content: str) -> dict | None:
@@ -365,10 +528,14 @@ def parse_gemfile(content: str) -> list[dict]:
 
 # (filename, parser) — order matters: first match per directory wins so that
 # a project with both pyproject.toml and requirements.txt prefers the modern one.
+# `requirements.txt` is deliberately NOT here — it's handled by the Python
+# requirements-discovery block in detect_dependencies(), which also walks
+# `requirements*.txt` and `requirements/*.txt` and follows `-r` includes.
 _MANIFEST_PARSERS: list[tuple[str, callable]] = [
     ("package.json", parse_package_json),
     ("pyproject.toml", parse_pyproject_toml),
-    ("requirements.txt", parse_requirements_txt),
+    ("Pipfile", parse_pipfile),
+    ("setup.cfg", parse_setup_cfg),
     ("Cargo.toml", parse_cargo_toml),
     ("go.mod", parse_go_mod),
     ("composer.json", parse_composer_json),
@@ -379,12 +546,14 @@ _MANIFEST_PARSERS: list[tuple[str, callable]] = [
 def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
     """Scan a project root for manifests and return a deduplicated dep list.
 
-    Looks only at the immediate project root — sub-package manifests are
-    rare enough that scanning recursively isn't worth the extra IO. The one
-    exception is Cargo workspaces: if the root Cargo.toml is a workspace,
-    each declared member's manifest is parsed too (without that, workspace
-    projects look dependency-less even with 100+ crates). Caps the total
-    to ``_DEPS_PER_PROJECT`` entries.
+    Looks at the immediate project root for each ecosystem's primary
+    manifest. Workspace-aware ecosystems (Cargo workspaces, npm/yarn/pnpm
+    workspaces, uv workspaces) additionally recurse into their declared
+    members so projects don't look dependency-less just because they're
+    multi-package monorepos. Python's per-file split (`requirements*.txt` +
+    `requirements/*.txt` + `-r` includes) is also handled.
+
+    Caps the total at ``_DEPS_PER_PROJECT`` entries.
     """
     root = Path(project_root)
     if not root.is_dir():
@@ -406,6 +575,7 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
         return False
 
     cargo_root_content: str | None = None
+    pyproject_root_content: str | None = None
     for filename, parser in _MANIFEST_PARSERS:
         path = root / filename
         if not path.is_file():
@@ -415,7 +585,18 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
             continue
         if filename == "Cargo.toml":
             cargo_root_content = content
+        if filename == "pyproject.toml":
+            pyproject_root_content = content
         if _absorb(parser(content)):
+            return collected
+
+    # Python: multi-file requirements discovery (root + requirements/*.txt)
+    # with `-r` include-following per file (cycle-protected).
+    for req_path in _discover_requirements_files(root):
+        content = _safe_read(req_path)
+        if content is None:
+            continue
+        if _absorb(parse_requirements_txt(content, _base=req_path.parent, _visited=set())):
             return collected
 
     # Cargo workspaces: recurse into each declared member crate.
@@ -435,6 +616,24 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
             continue
         if _absorb(parse_package_json(content)):
             return collected
+
+    # uv workspaces: recurse into each declared member pyproject.toml.
+    if pyproject_root_content is not None:
+        uv_members, uv_exclude = uv_workspace_patterns(pyproject_root_content)
+        if uv_members:
+            uv_paths = _resolve_workspace_manifests(root, uv_members, "pyproject.toml")
+            if uv_exclude:
+                excluded = set(
+                    p.resolve()
+                    for p in _resolve_workspace_manifests(root, uv_exclude, "pyproject.toml")
+                )
+                uv_paths = [p for p in uv_paths if p.resolve() not in excluded]
+            for member_path in uv_paths:
+                content = _safe_read(member_path)
+                if content is None:
+                    continue
+                if _absorb(parse_pyproject_toml(content)):
+                    return collected
 
     return collected
 

@@ -11,8 +11,10 @@ from ..analyzers.dependency_detection import (
     parse_gemfile,
     parse_go_mod,
     parse_package_json,
+    parse_pipfile,
     parse_pyproject_toml,
     parse_requirements_txt,
+    parse_setup_cfg,
 )
 
 
@@ -52,6 +54,79 @@ class TestPyproject(unittest.TestCase):
         names = {d["name"] for d in deps}
         self.assertIn("requests", names)
         self.assertNotIn("python", names)
+
+
+class TestPyprojectModern(unittest.TestCase):
+    def test_pep735_dependency_groups(self):
+        content = (
+            "[project]\n"
+            'name = "x"\n'
+            "[dependency-groups]\n"
+            'test = ["pytest>=8", "pytest-cov"]\n'
+            'docs = ["sphinx", {include-group = "test"}]\n'
+        )
+        deps = parse_pyproject_toml(content)
+        names = {d["name"] for d in deps}
+        self.assertIn("pytest", names)
+        self.assertIn("pytest-cov", names)
+        self.assertIn("sphinx", names)
+        # include-group references must not be treated as deps.
+        self.assertNotIn("include-group", names)
+
+    def test_poetry_groups(self):
+        content = (
+            "[tool.poetry.group.dev.dependencies]\n"
+            'pytest = "^8"\n'
+            "[tool.poetry.group.docs.dependencies]\n"
+            'sphinx = "^7"\n'
+        )
+        deps = parse_pyproject_toml(content)
+        names = {d["name"] for d in deps}
+        self.assertEqual(names, {"pytest", "sphinx"})
+
+    def test_pdm_dev_dependencies(self):
+        content = (
+            "[project]\n"
+            'name = "x"\n'
+            "[tool.pdm.dev-dependencies]\n"
+            'test = ["pytest>=8"]\n'
+            'lint = ["ruff"]\n'
+        )
+        deps = parse_pyproject_toml(content)
+        names = {d["name"] for d in deps}
+        self.assertEqual(names, {"pytest", "ruff"})
+
+
+class TestPipfile(unittest.TestCase):
+    def test_packages_and_dev_packages(self):
+        content = (
+            "[packages]\n"
+            'flask = "*"\n'
+            'requests = { version = ">=2.31" }\n'
+            "[dev-packages]\n"
+            'pytest = "*"\n'
+        )
+        deps = parse_pipfile(content)
+        by_name = {d["name"]: d["version"] for d in deps}
+        self.assertIsNone(by_name["flask"])  # "*" -> None
+        self.assertEqual(by_name["requests"], ">=2.31")
+        self.assertIsNone(by_name["pytest"])
+
+
+class TestSetupCfg(unittest.TestCase):
+    def test_install_requires_and_extras(self):
+        content = (
+            "[options]\n"
+            "install_requires =\n"
+            "    fastapi>=0.115\n"
+            "    rich\n"
+            "[options.extras_require]\n"
+            "test = pytest>=8\n"
+            "    coverage\n"
+        )
+        deps = parse_setup_cfg(content)
+        names = {d["name"] for d in deps}
+        self.assertEqual(names, {"fastapi", "rich", "pytest", "coverage"})
 
 
 class TestRequirements(unittest.TestCase):
@@ -127,6 +202,48 @@ class TestCargo(unittest.TestCase):
             self.assertIn("reqwest", cargo)
             # No duplicate serde entries despite appearing in both manifests.
             self.assertEqual(len([d for d in deps if d["name"] == "serde"]), 1)
+
+
+class TestRequirementsMultiFile(unittest.TestCase):
+    def test_discovers_requirements_variants_and_follows_r(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "requirements.txt").write_text("fastapi>=0.115\n-r dev.txt\n")
+            (root / "requirements-dev.txt").write_text("pytest>=8\n")
+            (root / "dev.txt").write_text("ruff\n-r constraints.txt\n")
+            (root / "constraints.txt").write_text("# cycle proof\n-r dev.txt\nrich\n")
+            (root / "requirements").mkdir()
+            (root / "requirements" / "prod.txt").write_text("uvicorn[standard]\n")
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "pypi"}
+            # all three layers represented, cycle handled, no infinite loop
+            self.assertEqual(names, {"fastapi", "pytest", "ruff", "rich", "uvicorn"})
+
+
+class TestUvWorkspaces(unittest.TestCase):
+    def test_recurses_into_uv_workspace_members(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "pyproject.toml").write_text(
+                "[project]\n"
+                'name = "root"\n'
+                'dependencies = ["click"]\n'
+                "[tool.uv.workspace]\n"
+                'members = ["packages/*"]\n'
+                'exclude = ["packages/legacy"]\n'
+            )
+            for sub, dep in [("a", "fastapi"), ("b", "rich"), ("legacy", "old")]:
+                (root / "packages" / sub).mkdir(parents=True)
+                (root / "packages" / sub / "pyproject.toml").write_text(
+                    f'[project]\nname = "{sub}"\ndependencies = ["{dep}"]\n'
+                )
+            deps = detect_dependencies(root)
+            names = {d["name"] for d in deps if d["manager"] == "pypi"}
+            self.assertIn("click", names)
+            self.assertIn("fastapi", names)
+            self.assertIn("rich", names)
+            # uv `exclude` keeps `legacy` out.
+            self.assertNotIn("old", names)
 
 
 class TestNpmWorkspaces(unittest.TestCase):
