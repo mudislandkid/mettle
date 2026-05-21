@@ -17,6 +17,29 @@ from batch_analyze import (
 )
 from mettle.analyzers.code_analyzer import CodeAnalyzer
 
+WRAPPER_REPO_MIN_CHILDREN = 3
+
+
+def _wrapper_repo_children(path: Path, include_internal: bool) -> list[Path] | None:
+    """Return git-repo children if `path` is a wrapper-repo, else None.
+
+    A directory is treated as a wrapper if at least WRAPPER_REPO_MIN_CHILDREN
+    of its direct children are themselves git repositories. This handles
+    monorepos-of-repos (clone-all.sh style layouts) where the wrapper repo
+    isn't the right unit of analysis on its own.
+    """
+    try:
+        children = [c for c in path.iterdir() if c.is_dir()]
+    except (OSError, PermissionError):
+        return None
+
+    repo_children = [
+        c for c in children if (c / ".git").exists() and is_project_directory(c, include_internal)
+    ]
+    if len(repo_children) >= WRAPPER_REPO_MIN_CHILDREN:
+        return repo_children
+    return None
+
 
 class AnalyzerService:
     """Service for analyzing project directories."""
@@ -31,7 +54,13 @@ class AnalyzerService:
         skip_public_sdks: bool = False,
         include_internal: bool = False,
     ) -> list[Path]:
-        """Discover project directories with filtering."""
+        """Discover project directories with filtering.
+
+        Auto-recurses into wrapper repos: if a candidate project is itself
+        a directory containing 3+ child git repos (a monorepo-of-repos like
+        gentlewatch), the children replace it in the result set so each
+        nested project gets its own analysis row.
+        """
         parent_dir = Path(directory).resolve()
 
         if not parent_dir.exists():
@@ -40,17 +69,22 @@ class AnalyzerService:
         if not parent_dir.is_dir():
             raise ValueError(f"Not a directory: {parent_dir}")
 
-        # Get direct subdirectories
         subdirs = [d for d in parent_dir.iterdir() if d.is_dir()]
-
-        # Filter to project directories
         project_dirs = [d for d in subdirs if is_project_directory(d, include_internal)]
 
-        # Filter out known public SDKs
+        # Expand any candidate that looks like a wrapper-repo into its children.
+        expanded: list[Path] = []
+        for d in project_dirs:
+            children = _wrapper_repo_children(d, include_internal)
+            if children:
+                expanded.extend(children)
+            else:
+                expanded.append(d)
+        project_dirs = expanded
+
         if skip_public_sdks:
             project_dirs = [d for d in project_dirs if not is_known_public_sdk(d)]
 
-        # Filter by GitHub user ownership
         if github_user:
             project_dirs = [d for d in project_dirs if is_owned_by_user(d, github_user)]
 
