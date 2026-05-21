@@ -82,6 +82,10 @@ mettle web                           # dev mode: API on :8000, Vite on :5173
 
 Open **http://localhost:5173**.
 
+> **Note for pyenv users:** if `mettle web` fails with `ModuleNotFoundError: No module named 'mettle'`, your shell is resolving an old `mettle` shim ahead of the venv's binary. Run `hash -r` to refresh the command cache, or call `python -m mettle web` instead (works inside any activated venv regardless of pyenv).
+>
+> **Note for systems without `venv`:** if `python -m venv .venv` fails with `No module named venv`, use `python3 -m venv .venv` (or `python3.12 -m venv .venv` if you have it). Some pyenv builds of 3.10 ship without `venv`.
+
 Or skip the UI and run a one-shot analysis from the terminal:
 
 ```bash
