@@ -79,6 +79,55 @@ class TestCargo(unittest.TestCase):
         self.assertEqual(by_name["serde"], "1.0")
         self.assertEqual(by_name["tokio"], "1")
 
+    def test_workspace_dependencies_are_collected(self):
+        """`[workspace.dependencies]` is the canonical place for declared
+        deps in a Rust workspace — previously missed by the parser."""
+        content = (
+            "[workspace]\n"
+            'members = ["crates/*"]\n'
+            "[workspace.dependencies]\n"
+            'snow = "0.10"\n'
+            'tokio = { version = "1.40", features = ["full"] }\n'
+            "[workspace.dev-dependencies]\n"
+            'proptest = "1"\n'
+        )
+        deps = parse_cargo_toml(content)
+        by_name = {d["name"]: d["version"] for d in deps}
+        self.assertEqual(by_name["snow"], "0.10")
+        self.assertEqual(by_name["tokio"], "1.40")
+        self.assertEqual(by_name["proptest"], "1")
+
+    def test_detect_recurses_into_workspace_members(self):
+        """Sub-crate manifests under workspace.members are parsed and merged
+        with workspace deps, with normal dedup-by-(name,manager) on top."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "Cargo.toml").write_text(
+                "[workspace]\n"
+                'members = ["crates/foo", "crates/*"]\n'
+                "[workspace.dependencies]\n"
+                'serde = "1.0"\n'
+            )
+            (root / "crates" / "foo").mkdir(parents=True)
+            (root / "crates" / "foo" / "Cargo.toml").write_text(
+                "[package]\n"
+                'name = "foo"\n'
+                "[dependencies]\n"
+                'tokio = "1"\n'
+                "serde.workspace = true\n"
+            )
+            (root / "crates" / "bar").mkdir(parents=True)
+            (root / "crates" / "bar" / "Cargo.toml").write_text(
+                "[package]\n" 'name = "bar"\n' "[dependencies]\n" 'reqwest = "0.12"\n'
+            )
+            deps = detect_dependencies(root)
+            cargo = {d["name"]: d for d in deps if d["manager"] == "cargo"}
+            self.assertIn("serde", cargo)
+            self.assertIn("tokio", cargo)
+            self.assertIn("reqwest", cargo)
+            # No duplicate serde entries despite appearing in both manifests.
+            self.assertEqual(len([d for d in deps if d["name"] == "serde"]), 1)
+
 
 class TestGoMod(unittest.TestCase):
     def test_require_block(self):

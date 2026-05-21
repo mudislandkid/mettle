@@ -161,23 +161,43 @@ def parse_requirements_txt(content: str) -> list[dict]:
     return out
 
 
-def parse_cargo_toml(content: str) -> list[dict]:
+def _cargo_load(content: str) -> dict | None:
     try:
         import tomllib
     except ImportError:  # pragma: no cover
         try:
             import tomli as tomllib  # type: ignore
         except ImportError:
-            return []
+            return None
     try:
-        data = tomllib.loads(content)
+        return tomllib.loads(content)
     except Exception:
+        return None
+
+
+def parse_cargo_toml(content: str) -> list[dict]:
+    """Parse `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]`,
+    plus the workspace equivalents (`[workspace.dependencies]` etc.).
+
+    Workspace dependencies are declared once at the workspace root and inherited
+    by member crates via `name.workspace = true`. Without this, workspace
+    projects look dependency-less even when they pull in 100+ crates."""
+    data = _cargo_load(content)
+    if data is None:
         return []
     out: list[dict] = []
-    for section in ("dependencies", "dev-dependencies", "build-dependencies"):
-        deps = data.get(section)
-        if not isinstance(deps, dict):
-            continue
+    sections: list[dict] = []
+    for key in ("dependencies", "dev-dependencies", "build-dependencies"):
+        sec = data.get(key)
+        if isinstance(sec, dict):
+            sections.append(sec)
+    workspace = data.get("workspace")
+    if isinstance(workspace, dict):
+        for key in ("dependencies", "dev-dependencies", "build-dependencies"):
+            sec = workspace.get(key)
+            if isinstance(sec, dict):
+                sections.append(sec)
+    for deps in sections:
         for name, value in deps.items():
             if not isinstance(name, str):
                 continue
@@ -186,6 +206,23 @@ def parse_cargo_toml(content: str) -> list[dict]:
             if len(out) >= _DEPS_PER_MANIFEST:
                 return out
     return out
+
+
+def cargo_workspace_members(content: str) -> list[str]:
+    """Return the `workspace.members` patterns from a root Cargo.toml.
+
+    Patterns may be plain paths (`"crates/foo"`) or globs (`"crates/*"`);
+    the caller is responsible for resolving them against the project root."""
+    data = _cargo_load(content)
+    if data is None:
+        return []
+    workspace = data.get("workspace")
+    if not isinstance(workspace, dict):
+        return []
+    members = workspace.get("members") or []
+    if not isinstance(members, list):
+        return []
+    return [m for m in members if isinstance(m, str)]
 
 
 _GO_REQUIRE_LINE = re.compile(r"^\s*(\S+)\s+(v\S+)\s*(?://.*)?$")
@@ -272,8 +309,11 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
     """Scan a project root for manifests and return a deduplicated dep list.
 
     Looks only at the immediate project root — sub-package manifests are
-    rare enough that scanning recursively isn't worth the extra IO. Caps the
-    total to ``_DEPS_PER_PROJECT`` entries.
+    rare enough that scanning recursively isn't worth the extra IO. The one
+    exception is Cargo workspaces: if the root Cargo.toml is a workspace,
+    each declared member's manifest is parsed too (without that, workspace
+    projects look dependency-less even with 100+ crates). Caps the total
+    to ``_DEPS_PER_PROJECT`` entries.
     """
     root = Path(project_root)
     if not root.is_dir():
@@ -282,6 +322,19 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
     collected: list[dict] = []
     seen: set[tuple[str, str]] = set()  # (name, manager) → dedup
 
+    def _absorb(deps: Iterable[dict]) -> bool:
+        """Append unique deps, return True when the per-project cap is hit."""
+        for dep in deps:
+            key = (dep["name"], dep["manager"])
+            if key in seen:
+                continue
+            seen.add(key)
+            collected.append(dep)
+            if len(collected) >= _DEPS_PER_PROJECT:
+                return True
+        return False
+
+    cargo_root_content: str | None = None
     for filename, parser in _MANIFEST_PARSERS:
         path = root / filename
         if not path.is_file():
@@ -289,16 +342,54 @@ def detect_dependencies(project_root: str | os.PathLike) -> list[dict]:
         content = _safe_read(path)
         if content is None:
             continue
-        for dep in parser(content):
-            key = (dep["name"], dep["manager"])
-            if key in seen:
+        if filename == "Cargo.toml":
+            cargo_root_content = content
+        if _absorb(parser(content)):
+            return collected
+
+    # Cargo workspaces: recurse into each declared member crate.
+    if cargo_root_content is not None:
+        for member_path in _resolve_cargo_workspace_members(root, cargo_root_content):
+            content = _safe_read(member_path)
+            if content is None:
                 continue
-            seen.add(key)
-            collected.append(dep)
-            if len(collected) >= _DEPS_PER_PROJECT:
+            if _absorb(parse_cargo_toml(content)):
                 return collected
 
     return collected
+
+
+def _resolve_cargo_workspace_members(root: Path, root_content: str) -> list[Path]:
+    """Expand `workspace.members` patterns into a list of sub-Cargo.toml paths.
+
+    Supports both plain paths (``"crates/foo"``) and glob patterns
+    (``"crates/*"``). Caps per-project crate count at 200 — a runaway
+    glob in someone's monorepo shouldn't blow up the analyser."""
+    patterns = cargo_workspace_members(root_content)
+    if not patterns:
+        return []
+    resolved: list[Path] = []
+    for pattern in patterns:
+        # Plain path: just check the manifest exists.
+        if not any(ch in pattern for ch in "*?["):
+            manifest = root / pattern / "Cargo.toml"
+            if manifest.is_file():
+                resolved.append(manifest)
+            continue
+        # Glob: walk via Path.glob, then add the Cargo.toml inside each match.
+        try:
+            matches = sorted(root.glob(pattern))
+        except (OSError, ValueError):
+            continue
+        for match in matches:
+            if not match.is_dir():
+                continue
+            manifest = match / "Cargo.toml"
+            if manifest.is_file():
+                resolved.append(manifest)
+        if len(resolved) >= 200:
+            break
+    return resolved[:200]
 
 
 def aggregate_by_name(per_project: Iterable[tuple[str, list[dict]]]) -> dict[str, list[str]]:
