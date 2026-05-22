@@ -1,7 +1,12 @@
 import { getToken, promptForToken } from '../lib/auth'
+import { apiBase, wsBase } from '../lib/runtime'
 import type { DigestReport } from '@/types'
 
-const API_BASE = '/api'
+// Resolved at call time so it picks up the Tauri sidecar port once
+// initRuntime() has completed during app boot.
+function apiUrl(endpoint: string): string {
+  return `${apiBase()}/api${endpoint}`
+}
 
 function formatErrorDetail(detail: unknown): string {
   if (typeof detail === 'string') return detail
@@ -38,7 +43,7 @@ export async function fetchApi<T>(
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  const response = await fetch(apiUrl(endpoint), {
     ...options,
     headers,
   })
@@ -58,8 +63,7 @@ export async function fetchApi<T>(
 }
 
 export function getWebSocketUrl(path: string): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}${path}`
+  return `${wsBase()}${path}`
 }
 
 export async function fetchDigest(params: {
