@@ -49,7 +49,7 @@ const compositionTotal = computed(() =>
 type Seg = { k: string; n: number; label: string; bar: string; chip: string }
 const segs = computed((): Seg[] => [
   { k: 'code',     n: totalCodeLines.value,     label: 'Code',     bar: 'bg-indigo-400', chip: 'text-indigo-300' },
-  { k: 'markdown', n: totalMarkdownLines.value, label: 'Markdown', bar: 'bg-violet-400', chip: 'text-violet-300' },
+  { k: 'markdown', n: totalMarkdownLines.value, label: 'Markdown', bar: 'bg-pink-400',   chip: 'text-pink-300' },
   { k: 'comments', n: totalCommentLines.value,  label: 'Comments', bar: 'bg-sky-400',    chip: 'text-sky-300' },
   { k: 'blank',    n: totalBlankLines.value,    label: 'Blank',    bar: 'bg-slate-500',  chip: 'text-slate-300' },
 ])
@@ -129,7 +129,7 @@ const pct = (n: number) =>
         </div>
         <!-- Markdown Lines -->
         <div>
-          <div class="text-[28px] font-semibold tabular-nums leading-none text-violet-300">
+          <div class="text-[28px] font-semibold tabular-nums leading-none text-pink-300">
             {{ fmtNum(totalMarkdownLines) }}
           </div>
           <div class="text-[10.5px] uppercase tracking-[0.14em] text-slate-500 mt-1.5 flex items-baseline gap-1.5">
