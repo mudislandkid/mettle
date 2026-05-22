@@ -14,7 +14,7 @@ use serde::Serialize;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{watch, Mutex};
 use tokio::time::timeout;
 
 /// Resolved sidecar coordinates, served to the frontend via `get_sidecar`.
@@ -24,17 +24,28 @@ struct SidecarHandshake {
     token: String,
 }
 
-/// Managed Tauri state. The handshake is resolved once at startup; subsequent
-/// reads of `get_sidecar` clone the result.
+/// Managed Tauri state.
+///
+/// The WebView typically loads JavaScript faster than the Python sidecar
+/// can boot (PyInstaller one-file extraction + alembic migrations take a
+/// few seconds on a cold launch). A naive `Mutex<Option<_>>` would let
+/// `get_sidecar` return None to the frontend during that gap, the
+/// frontend would fall back to relative URLs, and every API call would
+/// fail.
+///
+/// `watch::Sender<Option<_>>` solves that: `get_sidecar` subscribes and
+/// awaits the first Some value, so the frontend's `initRuntime()` call
+/// blocks until the handshake actually lands.
 struct SidecarState {
-    inner: Mutex<Option<SidecarHandshake>>,
+    handshake: watch::Sender<Option<SidecarHandshake>>,
     child: Mutex<Option<CommandChild>>,
 }
 
 impl SidecarState {
     fn new() -> Self {
+        let (tx, _rx) = watch::channel(None);
         Self {
-            inner: Mutex::new(None),
+            handshake: tx,
             child: Mutex::new(None),
         }
     }
@@ -42,10 +53,29 @@ impl SidecarState {
 
 #[tauri::command]
 async fn get_sidecar(state: tauri::State<'_, Arc<SidecarState>>) -> Result<SidecarHandshake, String> {
-    let guard = state.inner.lock().await;
-    guard
-        .clone()
-        .ok_or_else(|| "sidecar handshake not yet completed".to_string())
+    // Subscribe to the handshake watch. If the value is already Some,
+    // return it. Otherwise wait for the next change, with a 45s cap so a
+    // hung sidecar surfaces as a real error instead of an infinite spinner.
+    let mut rx = state.handshake.subscribe();
+    if let Some(hs) = rx.borrow().clone() {
+        return Ok(hs);
+    }
+    let result = timeout(Duration::from_secs(45), async move {
+        loop {
+            if let Some(hs) = rx.borrow().clone() {
+                return Ok::<SidecarHandshake, String>(hs);
+            }
+            rx.changed()
+                .await
+                .map_err(|e| format!("handshake channel closed: {e}"))?;
+        }
+    })
+    .await;
+    match result {
+        Ok(Ok(hs)) => Ok(hs),
+        Ok(Err(e)) => Err(e),
+        Err(_) => Err("timed out waiting for sidecar handshake".into()),
+    }
 }
 
 /// Parse a `MettleReady port=NNNN token=hex` stdout line.
@@ -89,12 +119,11 @@ async fn spawn_sidecar(app: &tauri::AppHandle, state: Arc<SidecarState>) -> Resu
         *slot = Some(child);
     }
 
-    // Pump stdout. The first MettleReady line resolves the handshake; we keep
-    // reading after that so the sidecar's stdio pipe doesn't fill and block.
-    let (ready_tx, ready_rx) = oneshot::channel::<SidecarHandshake>();
+    // Pump stdout. The first MettleReady line populates the watch channel
+    // (which `get_sidecar` is blocked on); we keep reading after that so
+    // the sidecar's stdio pipe doesn't fill and block.
     let state_for_task = state.clone();
     tauri::async_runtime::spawn(async move {
-        let mut ready_tx = Some(ready_tx);
         while let Some(event) = rx.recv().await {
             match event {
                 CommandEvent::Stdout(bytes) => {
@@ -103,13 +132,7 @@ async fn spawn_sidecar(app: &tauri::AppHandle, state: Arc<SidecarState>) -> Resu
                         eprintln!("[sidecar] {line}");
                     }
                     if let Some(hs) = parse_handshake(&line) {
-                        {
-                            let mut slot = state_for_task.inner.lock().await;
-                            *slot = Some(hs.clone());
-                        }
-                        if let Some(tx) = ready_tx.take() {
-                            let _ = tx.send(hs);
-                        }
+                        let _ = state_for_task.handshake.send(Some(hs));
                     }
                 }
                 CommandEvent::Stderr(bytes) => {
@@ -130,11 +153,21 @@ async fn spawn_sidecar(app: &tauri::AppHandle, state: Arc<SidecarState>) -> Resu
         }
     });
 
-    // Give the sidecar 45s to print MettleReady — PyInstaller one-file
-    // extraction on a cold disk can be slow on first launch.
-    match timeout(Duration::from_secs(45), ready_rx).await {
-        Ok(Ok(_)) => Ok(()),
-        Ok(Err(_)) => Err("sidecar stdout closed before handshake".into()),
+    // Wait until the handshake watch transitions to Some, with a 45s cap.
+    let mut rx = state.handshake.subscribe();
+    let wait = async move {
+        loop {
+            if rx.borrow().is_some() {
+                return Ok::<(), String>(());
+            }
+            rx.changed()
+                .await
+                .map_err(|e| format!("handshake channel closed: {e}"))?;
+        }
+    };
+    match timeout(Duration::from_secs(45), wait).await {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e),
         Err(_) => Err("timed out waiting for sidecar handshake".into()),
     }
 }

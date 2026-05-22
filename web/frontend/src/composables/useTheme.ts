@@ -8,17 +8,19 @@ const STORAGE_KEY = 'mettle-theme'
 const current = ref<Theme>(initialTheme())
 
 function initialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light'
+  if (typeof window === 'undefined') return 'dark'
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY)
     if (stored === 'light' || stored === 'dark') return stored
   } catch {
-    // localStorage can throw in privacy modes; fall through to media query.
+    // localStorage can throw in privacy modes; fall through.
   }
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
-  return 'light'
+  // Light mode isn't shipped yet — the App shell uses hardcoded slate-950
+  // backgrounds while sub-view cards (ProjectMetricsCard etc.) use Tailwind
+  // `dark:` modifiers. Defaulting to 'dark' keeps the UI internally
+  // consistent regardless of the host OS appearance until the theme toggle
+  // is properly wired (Phase E).
+  return 'dark'
 }
 
 function apply(theme: Theme) {
