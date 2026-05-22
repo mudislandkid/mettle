@@ -47,6 +47,13 @@ def test_validate_cors_rejects_missing_scheme(security_env):
     assert "scheme" in str(exc.value).lower()
 
 
+def test_validate_cors_accepts_tauri_scheme(security_env):
+    """Desktop build serves the WebView from tauri://localhost — must be allowed."""
+    security_env()
+    startup.validate_cors(["tauri://localhost", "https://tauri.localhost"])
+    # No raise — pass.
+
+
 def test_validate_cors_rejects_empty_with_token(security_env):
     security_env(TOKEN="abc")
     with pytest.raises(SystemExit) as exc:

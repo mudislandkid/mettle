@@ -39,10 +39,15 @@ def assert_bind_is_safe(host: str, allow_public: bool) -> None:
         )
 
 
+_ALLOWED_CORS_SCHEMES = ("http://", "https://", "tauri://")
+
+
 def validate_cors(origins: list[str]) -> None:
     """Reject CORS configurations that would silently break the security model.
 
     Raises SystemExit on wildcards, missing schemes, or empty-with-token.
+    The `tauri://` scheme is allowed for the desktop build — the Tauri
+    WebView serves the bundled frontend from `tauri://localhost` (macOS/Linux).
     """
     for origin in origins:
         if "*" in origin:
@@ -50,7 +55,7 @@ def validate_cors(origins: list[str]) -> None:
                 f"CORS wildcard origin ({origin!r}) is not allowed.\n"
                 "  Set METTLE_CORS_ORIGINS to a comma-separated list of exact origins."
             )
-        if not (origin.startswith("http://") or origin.startswith("https://")):
+        if not any(origin.startswith(s) for s in _ALLOWED_CORS_SCHEMES):
             sys.exit(
                 f"CORS origin must include scheme: got {origin!r}.\n"
                 "  Use e.g. 'https://mettle.example.com', not 'mettle.example.com'."
