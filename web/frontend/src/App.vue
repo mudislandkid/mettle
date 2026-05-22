@@ -2,6 +2,7 @@
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { computed } from 'vue'
 import TokenPrompt from './components/TokenPrompt.vue'
+import UpdateButton from './components/UpdateButton.vue'
 
 const route = useRoute()
 
@@ -50,6 +51,9 @@ const isActive = (path: string) =>
             >
               {{ link.label }}
             </RouterLink>
+
+            <!-- Updates (only renders in the Tauri desktop shell) -->
+            <UpdateButton class="ml-2" />
 
             <!-- Theme toggle — visual placeholder; light mode wired in Phase E -->
             <button
