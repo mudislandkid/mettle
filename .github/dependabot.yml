@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Python deps
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 5
+
+  # Rust deps (Tauri shell)
+  - package-ecosystem: "cargo"
+    directory: "/web/frontend/src-tauri"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "rust"
+    open-pull-requests-limit: 5
+
+  # npm deps (Vue frontend)
+  - package-ecosystem: "npm"
+    directory: "/web/frontend"
+    schedule:
+      interval: "daily"
+    labels:
+      - "dependencies"
+      - "javascript"
+    open-pull-requests-limit: 5
+    versioning-strategy: "increase-if-necessary"
+
+  # GitHub Actions versions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"

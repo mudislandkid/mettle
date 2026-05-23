@@ -32,6 +32,11 @@ jobs:
       - name: ruff check
         run: ruff check .
 
+      - name: bandit (Python SAST, medium+ severity)
+        run: |
+          pip install bandit
+          bandit -r mettle/ web/backend/ --severity-level medium -c pyproject.toml
+
       - name: pytest core
         run: pytest mettle/tests/ -q
 

@@ -1,0 +1,52 @@
+name: Dependency Audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"  # daily 06:00 UTC
+
+jobs:
+  python:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pip-audit
+      - name: Audit
+        run: pip-audit --vulnerability-service osv .
+
+  rust:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit
+        working-directory: web/frontend/src-tauri
+        # Ignore unmaintained-crate advisories (RUSTSEC informational warnings).
+        # GTK3 deps come in via Tauri's optional Linux backend; we don't ship
+        # Linux builds. Real vulnerabilities still block.
+        run: cargo audit --ignore RUSTSEC-2024-0411 --ignore RUSTSEC-2024-0412 --ignore RUSTSEC-2024-0413 --ignore RUSTSEC-2024-0414 --ignore RUSTSEC-2024-0415 --ignore RUSTSEC-2024-0416 --ignore RUSTSEC-2024-0417 --ignore RUSTSEC-2024-0418 --ignore RUSTSEC-2024-0420
+
+  javascript:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        working-directory: web/frontend
+        run: npm ci
+      - name: Audit (high+critical only)
+        working-directory: web/frontend
+        run: npm audit --omit=dev --audit-level=high
