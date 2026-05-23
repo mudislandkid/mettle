@@ -41,14 +41,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Apple Silicon. macOS-14 runners are M-series.
+          # Apple Silicon only. macOS-14 runners are M-series.
+          # Intel (x86_64) builds dropped 2026-05-23: GitHub macos-13 runner
+          # capacity is gone and PyInstaller can't cross-compile from arm64.
+          # If Intel users surface, revisit via universal-apple-darwin or a
+          # self-hosted Intel runner.
           - runner: macos-14
             target: aarch64-apple-darwin
             sidecar_triple: aarch64-apple-darwin
-          # Intel Macs.
-          - runner: macos-13
-            target: x86_64-apple-darwin
-            sidecar_triple: x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -200,12 +200,8 @@ jobs:
           mkdir -p sigs
           gh release download "$TAG" --repo "$REPO" --pattern "*.sig" --dir sigs
           AARCH64_SIG=$(cat "sigs/Mettle-aarch64-apple-darwin.app.tar.gz.sig" | tr -d '\n')
-          X86_64_SIG=$(cat   "sigs/Mettle-x86_64-apple-darwin.app.tar.gz.sig"   | tr -d '\n')
           echo "aarch64<<EOF" >> "$GITHUB_OUTPUT"
           echo "$AARCH64_SIG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-          echo "x86_64<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$X86_64_SIG"   >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Write latest.json
@@ -215,7 +211,6 @@ jobs:
           VERSION: ${{ steps.tag.outputs.version }}
           REPO: ${{ github.repository }}
           SIG_AARCH64: ${{ steps.sigs.outputs.aarch64 }}
-          SIG_X86_64:  ${{ steps.sigs.outputs.x86_64 }}
         run: |
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           BASE="https://github.com/${REPO}/releases/download/${TAG}"
@@ -228,10 +223,6 @@ jobs:
               "darwin-aarch64": {
                 "signature": "${SIG_AARCH64}",
                 "url": "${BASE}/Mettle-aarch64-apple-darwin.app.tar.gz"
-              },
-              "darwin-x86_64": {
-                "signature": "${SIG_X86_64}",
-                "url": "${BASE}/Mettle-x86_64-apple-darwin.app.tar.gz"
               }
             }
           }
