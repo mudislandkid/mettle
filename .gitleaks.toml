@@ -1,0 +1,23 @@
+# gitleaks allowlist for Mettle.
+#
+# Allowlists the false-positive test fixtures that intentionally contain
+# secret-shaped strings as part of the secret-scanner's own test suite,
+# plus the CI smoke test's literal "do-not-use" token.
+
+[allowlist]
+description = "Allowlisted false positives in Mettle"
+
+# Mettle ships a secret scanner. The test suites contain literal example
+# secrets so we can verify the scanner detects them. These are not real
+# credentials — they're fixtures.
+paths = [
+    '''^mettle/tests/test_secrets\.py$''',
+    '''^mettle/tests/test_analyzer_pipeline\.py$''',
+    '''^web/backend/tests/test_analysis_writes_scanner_fields\.py$''',
+]
+
+# CI smoke test token — literal "do-not-use" string in a workflow step.
+# A real secret on that line would not contain this stopword.
+stopwords = [
+    "ci-test-token-do-not-use",
+]

@@ -104,3 +104,9 @@ ignore = [
 testpaths = ["mettle/tests", "web/backend/tests"]
 python_files = ["test_*.py"]
 pythonpath = ["."]
+
+[tool.bandit]
+# Skip test directories entirely. They contain example secrets, literal
+# 0.0.0.0 strings (testing the bind-safety guard), and asserts — all
+# false positives for SAST against application code.
+exclude_dirs = ["mettle/tests", "web/backend/tests"]

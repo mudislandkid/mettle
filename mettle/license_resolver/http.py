@@ -54,7 +54,11 @@ class RegistryClient:
                     url,
                     headers={"User-Agent": self.user_agent, "Accept": "application/json"},
                 )
-                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                # nosec B310: callers construct the URL from a hardcoded https://
+                # registry prefix (pypi.org / registry.npmjs.org / crates.io) with
+                # only the package name appended to the path. Scheme is never
+                # user-controlled.
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                     raw = resp.read()
                 try:
                     return json.loads(raw)
