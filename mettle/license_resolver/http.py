@@ -20,7 +20,7 @@ from typing import Any
 
 from .. import __version__
 
-_DEFAULT_UA = f"mettle/{__version__} license-resolver (+https://github.com/icepointlabs/mettle)"
+_DEFAULT_UA = f"mettle/{__version__} license-resolver (+https://github.com/mudislandkid/mettle)"
 _DEFAULT_TIMEOUT = 8.0
 _RETRYABLE_STATUSES = {429, 500, 502, 503, 504}
 
