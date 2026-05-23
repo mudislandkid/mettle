@@ -112,8 +112,29 @@ jobs:
       - name: Tauri build
         working-directory: web/frontend
         env:
+          # Updater bundle signing (Ed25519 minisign — what the in-app
+          # updater verifies against the embedded public key).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+          # Apple Developer ID code signing + notarization. When these are
+          # all set, `tauri build` imports the cert into a temp keychain,
+          # signs the .app and .dmg with the Developer ID Application cert,
+          # submits the .app to Apple for notarization, polls until the
+          # ticket is issued, and staples it. The result is a Gatekeeper-
+          # clean bundle that opens with a normal "downloaded from internet"
+          # prompt instead of the right-click-Open workaround.
+          #
+          # Leaving any of these empty (e.g. forks without a Dev account)
+          # falls back to an ad-hoc / unsigned build — still functional,
+          # just shows the Gatekeeper warning on first launch.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
           # Baked into the binary via option_env!() — gives the in-app
           # updater read access to the manifest + release assets in this
           # private repo. Fine-grained PAT, contents:read scope only.
