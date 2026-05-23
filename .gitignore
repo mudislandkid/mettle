@@ -111,3 +111,20 @@ docs/reports/
 
 # Phase D design hand-off archive (Claude Design output)
 docs/design/
+# Tauri updater signing key — NEVER commit.
+.tauri-updater
+.tauri-updater.pub.bak
+
+# Tauri build artefacts
+web/frontend/src-tauri/target/
+web/frontend/src-tauri/gen/
+web/frontend/src-tauri/binaries/mettle-sidecar*
+# The repo-wide `Icon?` rule (macOS Finder metadata) accidentally matches
+# our packaged app icons on case-insensitive filesystems — un-ignore them.
+!web/frontend/src-tauri/icons/
+!web/frontend/src-tauri/icons/**
+
+# Sidecar build outputs
+web/dist-sidecar/
+web/build-sidecar/
+*.spec.bak

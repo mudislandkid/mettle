@@ -60,6 +60,27 @@ def test_correct_token_returns_200(security_env):
     assert r.json() == {"ok": True}
 
 
+def test_options_preflight_is_exempt(security_env):
+    """CORS preflight (OPTIONS) must pass through so CORSMiddleware can answer.
+
+    Without this, cross-origin POSTs from the Tauri WebView get 401'd at the
+    preflight stage — the browser never sends the real request.
+    """
+    security_env(TOKEN="abc")
+    client = TestClient(_app_with_middleware("abc"))
+    r = client.options(
+        "/ping",
+        headers={
+            "Origin": "tauri://localhost",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    # FastAPI without CORSMiddleware returns 405 for OPTIONS on a GET route,
+    # but the key behaviour is that we did NOT 401 — so anything other than
+    # 401 means the auth layer let it through.
+    assert r.status_code != 401
+
+
 def test_ws_path_is_exempt_from_http_middleware(security_env):
     """The /ws/* upgrade path is handled by the route dependency, not the HTTP middleware.
 

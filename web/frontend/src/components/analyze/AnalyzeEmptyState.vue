@@ -40,6 +40,9 @@ function handleStart() {
 }
 
 const BULLETS = [
+  'Language-aware parsers — strip vendored, generated, and minified files',
+  'Counts code vs. comments vs. blanks vs. markdown — separately, per file',
+  'Detects tests heuristically so production LOC isn\'t inflated',
   'All completed analyses feed the Digest view',
   'Re-running keeps history — compare snapshots over time',
   'Read-only · runs locally · zero telemetry',
@@ -59,13 +62,16 @@ const BULLETS = [
           <span class="text-[11px] text-slate-500 font-mono">point at a directory</span>
         </div>
         <h1 class="text-[34px] sm:text-[40px] font-semibold tracking-tight text-slate-100 leading-[1.05]">
-          See what's actually<br/>
-          <span class="text-slate-500">going on in your code.</span>
+          Honest line counts.<br/>
+          <span class="text-slate-500">Per-language by design.</span>
         </h1>
         <p class="text-[14px] text-slate-400 mt-3 max-w-md leading-relaxed">
-          Mettle scans every project under one path: counting lines, mapping languages,
-          finding TODOs, sniffing out secrets, and grading health. No agents, no upload — it
-          reads from your filesystem and your git history.
+          Every language gets its own parser — Python, JavaScript/TypeScript, Vue, HTML/CSS,
+          C-family, Markdown — tuned to strip <em class="text-slate-300 not-italic">node_modules,
+          vendored SDKs, generated bundles, minified blobs, sourcemaps, and lockfiles</em> so
+          your numbers reflect what you actually wrote. Mettle then finds TODOs, sniffs out
+          secrets, and grades health. No agents, no upload — it reads your filesystem and git
+          history.
         </p>
 
         <ul class="mt-6 space-y-2 text-[13px] text-slate-300">

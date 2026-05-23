@@ -1,0 +1,262 @@
+# Desktop release pipeline.
+#
+# Trigger: push a tag matching `v*` (e.g. `v0.10.0`). The job:
+#   1. Builds the PyInstaller sidecar binary on the macOS runner.
+#   2. Stages it under web/frontend/src-tauri/binaries/ with Tauri's
+#      target-triple naming convention.
+#   3. Runs `cargo tauri build`, which produces a signed `.app.tar.gz` +
+#      `.app.tar.gz.sig` plus a `.dmg`.
+#   4. Creates / updates the GitHub Release for the tag and uploads the
+#      artefacts.
+#   5. Writes the updater manifest (`latest.json`) onto the orphan
+#      `release-manifest` branch — the app reads its raw URL on every
+#      "Check for updates" click.
+#
+# Required secrets:
+#   TAURI_SIGNING_PRIVATE_KEY           — minisign private key (contents)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  — empty if generated with no password
+#   GITHUB_TOKEN is provided by Actions; we use it for releases + manifest push.
+
+name: desktop-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to (re-)release, e.g. v0.10.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & release (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon. macOS-14 runners are M-series.
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            sidecar_triple: aarch64-apple-darwin
+          # Intel Macs.
+          - runner: macos-13
+            target: x86_64-apple-darwin
+            sidecar_triple: x86_64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_INPUT_TAG#v}" >> "$GITHUB_OUTPUT"
+            GITHUB_INPUT_TAG="${{ inputs.tag }}"
+            echo "version=${GITHUB_INPUT_TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            REF_NAME="${GITHUB_REF_NAME}"
+            echo "ref=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/frontend/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: web/frontend/src-tauri -> target
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[web]"
+          python -m pip install pyinstaller
+
+      - name: Build sidecar binary
+        run: |
+          pyinstaller --clean --noconfirm \
+            --distpath ./web/dist-sidecar \
+            --workpath ./web/build-sidecar \
+            web/sidecar.spec
+
+      - name: Stage sidecar for Tauri
+        run: |
+          mkdir -p web/frontend/src-tauri/binaries
+          cp web/dist-sidecar/mettle-sidecar \
+             "web/frontend/src-tauri/binaries/mettle-sidecar-${{ matrix.sidecar_triple }}"
+          chmod +x web/frontend/src-tauri/binaries/mettle-sidecar-${{ matrix.sidecar_triple }}
+
+      - name: Install frontend deps
+        working-directory: web/frontend
+        run: npm ci
+
+      - name: Tauri build
+        working-directory: web/frontend
+        env:
+          # Updater bundle signing (Ed25519 minisign — what the in-app
+          # updater verifies against the embedded public key).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+          # Apple Developer ID code signing + notarization. When these are
+          # all set, `tauri build` imports the cert into a temp keychain,
+          # signs the .app and .dmg with the Developer ID Application cert,
+          # submits the .app to Apple for notarization, polls until the
+          # ticket is issued, and staples it. The result is a Gatekeeper-
+          # clean bundle that opens with a normal "downloaded from internet"
+          # prompt instead of the right-click-Open workaround.
+          #
+          # Leaving any of these empty (e.g. forks without a Dev account)
+          # falls back to an ad-hoc / unsigned build — still functional,
+          # just shows the Gatekeeper warning on first launch.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+          # Baked into the binary via option_env!() — gives the in-app
+          # updater read access to the manifest + release assets in this
+          # private repo. Fine-grained PAT, contents:read scope only.
+          METTLE_UPDATER_PAT: ${{ secrets.METTLE_UPDATER_PAT }}
+        run: npx tauri build --target ${{ matrix.target }}
+
+      - name: Collect artefacts
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE=web/frontend/src-tauri/target/${{ matrix.target }}/release/bundle
+          APP_TAR=$(ls "$BUNDLE"/macos/*.app.tar.gz)
+          APP_SIG=$(ls "$BUNDLE"/macos/*.app.tar.gz.sig)
+          DMG=$(ls "$BUNDLE"/dmg/*.dmg)
+          # Rename so Intel + Apple Silicon assets don't collide on the release.
+          mkdir -p staging
+          cp "$APP_TAR" "staging/Mettle-${{ matrix.target }}.app.tar.gz"
+          cp "$APP_SIG" "staging/Mettle-${{ matrix.target }}.app.tar.gz.sig"
+          cp "$DMG"     "staging/Mettle-${{ matrix.target }}.dmg"
+          echo "app_tar=staging/Mettle-${{ matrix.target }}.app.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "app_sig=staging/Mettle-${{ matrix.target }}.app.tar.gz.sig" >> "$GITHUB_OUTPUT"
+          echo "dmg=staging/Mettle-${{ matrix.target }}.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.ref }}
+          name: ${{ steps.tag.outputs.ref }}
+          generate_release_notes: true
+          files: |
+            staging/Mettle-${{ matrix.target }}.app.tar.gz
+            staging/Mettle-${{ matrix.target }}.app.tar.gz.sig
+            staging/Mettle-${{ matrix.target }}.dmg
+
+  publish-manifest:
+    name: Publish updater manifest
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          echo "ref=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch release signatures
+        id: sigs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p sigs
+          gh release download "$TAG" --repo "$REPO" --pattern "*.sig" --dir sigs
+          AARCH64_SIG=$(cat "sigs/Mettle-aarch64-apple-darwin.app.tar.gz.sig" | tr -d '\n')
+          X86_64_SIG=$(cat   "sigs/Mettle-x86_64-apple-darwin.app.tar.gz.sig"   | tr -d '\n')
+          echo "aarch64<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$AARCH64_SIG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "x86_64<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$X86_64_SIG"   >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Write latest.json
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.ref }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          REPO: ${{ github.repository }}
+          SIG_AARCH64: ${{ steps.sigs.outputs.aarch64 }}
+          SIG_X86_64:  ${{ steps.sigs.outputs.x86_64 }}
+        run: |
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          BASE="https://github.com/${REPO}/releases/download/${TAG}"
+          cat > latest.json <<JSON
+          {
+            "version": "${VERSION}",
+            "notes": "See https://github.com/${REPO}/releases/tag/${TAG}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "${SIG_AARCH64}",
+                "url": "${BASE}/Mettle-aarch64-apple-darwin.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "${SIG_X86_64}",
+                "url": "${BASE}/Mettle-x86_64-apple-darwin.app.tar.gz"
+              }
+            }
+          }
+          JSON
+          cat latest.json
+
+      - name: Publish to release-manifest branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Orphan branch holds only latest.json + version-pinned snapshots.
+          mkdir -p _publish
+          mv latest.json _publish/
+          cd _publish
+          git init -q
+          git checkout -q -b release-manifest
+          cp latest.json "latest-${TAG}.json"
+          git add latest.json "latest-${TAG}.json"
+          git commit -q -m "release: ${TAG}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          # Force-push: this branch is a manifest, not history.
+          git push -q -f origin release-manifest

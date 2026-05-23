@@ -34,6 +34,14 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         if request.url.path.startswith("/ws/"):
             return await call_next(request)
+        # CORS preflight is safe by design (no body, no side-effects) and the
+        # browser never attaches Authorization headers to it. Let it through so
+        # CORSMiddleware can answer with the right Access-Control-Allow-*
+        # headers — otherwise cross-origin POSTs from the Tauri WebView
+        # (tauri://localhost → http://127.0.0.1:<port>) get a 401 here before
+        # the real request is even attempted.
+        if request.method == "OPTIONS":
+            return await call_next(request)
 
         header = request.headers.get("authorization", "")
         scheme, _, presented = header.partition(" ")

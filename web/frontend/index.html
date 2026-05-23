@@ -1,5 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<!--
+  `class="dark"` is set inline on <html> (not via script) so it applies even
+  under Tauri's strict `script-src 'self'` CSP. Light mode isn't shipped yet —
+  the App shell uses hardcoded slate-950 backgrounds while a handful of
+  sub-view cards still use Tailwind's `dark:` modifier (ProjectMetricsCard,
+  HealthBreakdownPanel, etc.). Without `dark` on <html>, those cards render
+  white inside an otherwise-dark app.
+-->
+<html lang="en" class="dark" style="color-scheme: dark;">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -8,29 +16,88 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-    <!--
-      Apply the stored theme before the Vue app boots so the first paint is
-      already in the right colors (avoids the white-flash-then-dark stutter).
-    -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('mettle-theme');
-          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var dark = stored === 'dark' || (stored !== 'light' && prefersDark);
-          if (dark) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.style.colorScheme = 'dark';
-          } else {
-            document.documentElement.style.colorScheme = 'light';
-          }
-        } catch (_) {
-          // Privacy modes etc. — fall through with light theme.
-        }
-      })();
-    </script>
   </head>
   <body>
+    <!--
+      Boot splash. Rendered immediately by the browser so the user has
+      something on screen while initRuntime() blocks on the Python
+      sidecar handshake (~5-7s on cold launch in the desktop build).
+      The Vue app replaces #app contents once mounted; #boot-splash
+      is faded out and removed via main.ts.
+    -->
+    <style>
+      html, body { background: #020617; margin: 0; padding: 0; }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 18px;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        color: #cbd5e1;
+        background:
+          radial-gradient(80% 60% at 50% 35%, rgba(99,102,241,0.18), transparent 60%),
+          #020617;
+        z-index: 9999;
+        transition: opacity 220ms ease-out;
+      }
+      #boot-splash.is-leaving { opacity: 0; }
+      #boot-splash .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #boot-splash .logo svg {
+        width: 30px;
+        height: 30px;
+        color: #818cf8;
+      }
+      #boot-splash .logo .name {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: #f1f5f9;
+      }
+      #boot-splash .status {
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #64748b;
+        font-weight: 600;
+      }
+      #boot-splash .bar {
+        width: 200px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgba(99,102,241,0.15);
+        overflow: hidden;
+        position: relative;
+      }
+      #boot-splash .bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, #818cf8, transparent);
+        animation: boot-slide 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-slide {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+    </style>
+    <div id="boot-splash">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+        <span class="name">Mettle</span>
+      </div>
+      <div class="bar"></div>
+      <div class="status">Starting backend…</div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
