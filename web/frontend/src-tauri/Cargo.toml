@@ -2,7 +2,7 @@
 name = "mettle-desktop"
 version = "0.9.2"
 description = "Mettle desktop shell"
-authors = ["Greg Herriott"]
+authors = ["mudislandkid"]
 edition = "2021"
 rust-version = "1.77"
 

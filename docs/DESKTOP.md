@@ -83,7 +83,7 @@ unsigned (users see a Gatekeeper warning on first launch).
 |------------------------------|--------------------------------------------------------------------------------------------|
 | `APPLE_CERTIFICATE`          | Base64 of your `.p12` export (`base64 -i mettle-signing.p12 \| pbcopy`)                    |
 | `APPLE_CERTIFICATE_PASSWORD` | Password used when exporting the `.p12`                                                    |
-| `APPLE_SIGNING_IDENTITY`     | Full cert CN, e.g. `Developer ID Application: Greg Herriott (XXXXXXXXXX)`                  |
+| `APPLE_SIGNING_IDENTITY`     | Full cert CN, e.g. `Developer ID Application: Your Name (XXXXXXXXXX)`                      |
 | `APPLE_ID`                   | The Apple ID email associated with your developer account                                  |
 | `APPLE_PASSWORD`             | App-specific password (appleid.apple.com → Sign-In and Security → App-Specific Passwords)  |
 | `APPLE_TEAM_ID`              | 10-char team ID from developer.apple.com → Membership                                      |
