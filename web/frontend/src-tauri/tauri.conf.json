@@ -43,7 +43,8 @@
     "shortDescription": "Triage dashboard for the AI-coding era",
     "longDescription": "Honest line counts, health scoring, and cross-project insight for solo developers managing repo sprawl.",
     "macOS": {
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "entitlements": "entitlements.plist"
     },
     "createUpdaterArtifacts": true
   },
