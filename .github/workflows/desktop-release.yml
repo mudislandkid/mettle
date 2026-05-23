@@ -134,11 +134,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-          # Baked into the binary via option_env!() — gives the in-app
-          # updater read access to the manifest + release assets in this
-          # private repo. Fine-grained PAT, contents:read scope only.
-          METTLE_UPDATER_PAT: ${{ secrets.METTLE_UPDATER_PAT }}
         run: npx tauri build --target ${{ matrix.target }}
 
       - name: Collect artefacts
