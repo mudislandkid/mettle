@@ -1,5 +1,7 @@
 """Project API routes."""
 
+import logging
+import sys
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,6 +42,15 @@ from ..schemas.tags import (
 )
 from ..services.analyzer_service import AnalyzerService
 from ..services.health_score import compute_health
+
+log = logging.getLogger("mettle.api.projects")
+
+# Hoist batch_analyze (lives at repo root) onto sys.path at module load time
+# rather than mid-request. Side effect of import is constrained to startup.
+_PROJECT_ROOT = Path(__file__).parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+from batch_analyze import analyze_project  # noqa: E402
 
 router = APIRouter()
 
@@ -275,7 +286,10 @@ async def resolve_project_licenses(
     except Exception as e:
         # Resolver should never raise to here — runner swallows registry
         # errors per-dep. If we still land here it's a programmer error.
-        raise HTTPException(status_code=500, detail=f"resolver failed: {e}") from e
+        log.exception("license resolver failed for project %s", project.id)
+        raise HTTPException(
+            status_code=500, detail="License resolver failed (see server logs)"
+        ) from e
 
     project.dependency_licenses = license_list
     project.dependency_license_summary = summary
@@ -369,14 +383,6 @@ async def refresh_project_analysis(
     # Re-analyze the project
     try:
         analyzer_service = AnalyzerService()
-        # Import analyze_project from batch_analyze
-        import sys
-        from pathlib import Path as P
-
-        PROJECT_ROOT = P(__file__).parents[3]
-        sys.path.insert(0, str(PROJECT_ROOT))
-        from batch_analyze import analyze_project
-
         summary = analyze_project(project_path, analyzer_service.analyzer)
 
         if not summary or summary.total_files == 0:
@@ -430,9 +436,8 @@ async def refresh_project_analysis(
         return get_project_response(project, session)
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to re-analyze project: {str(e)}"
-        ) from e
+        log.exception("re-analyze project %s failed", project.id)
+        raise HTTPException(status_code=500, detail="Re-analysis failed (see server logs)") from e
 
 
 # Top-N dashboard panels -------------------------------------------------------

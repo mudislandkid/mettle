@@ -63,15 +63,20 @@ async def authorize_websocket(websocket) -> str | None:
     is required and the handshake fails, this function closes the socket with
     code 1008 and the caller should simply return.
     """
-    expected = settings.token()
-    if expected is None:
-        return None  # no auth — caller should accept() with no subprotocol
-
+    # Origin check applies in both auth modes — defense in depth against
+    # browser-originated requests from disallowed pages even in the no-token
+    # local-only mode. A browser-loaded file:// page or a malicious page on
+    # another origin should not be able to subscribe to analysis events on
+    # 127.0.0.1, regardless of whether a token is configured.
     origin = websocket.headers.get("origin", "")
     if origin and origin not in settings.cors_origins():
         log.warning("WS rejected: origin %r not in METTLE_CORS_ORIGINS", origin)
         await websocket.close(code=1008, reason="origin not allowed")
         return None
+
+    expected = settings.token()
+    if expected is None:
+        return None  # no auth — caller should accept() with no subprotocol
 
     protocols = websocket.headers.get("sec-websocket-protocol", "")
     parts = [p.strip() for p in protocols.split(",") if p.strip()]

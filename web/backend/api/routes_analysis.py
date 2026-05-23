@@ -246,9 +246,10 @@ def run_analysis_sync(analysis_id: int, directory: str, filters: dict):
             if analysis:
                 analysis.completed_at = datetime.utcnow()
                 analysis.status = "failed"
-                # Store a short reason for the UI but keep full traceback in
-                # the server log only.
-                analysis.error_message = f"{type(exc).__name__}: {exc}"
+                # Store only the exception class name for the UI — full
+                # traceback (including OS paths in PermissionError etc.)
+                # stays in the server log only.
+                analysis.error_message = type(exc).__name__
                 session.commit()
 
             schedule_broadcast(

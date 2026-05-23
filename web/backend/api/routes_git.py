@@ -1,5 +1,7 @@
 """Git statistics API routes."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlmodel import Session
@@ -8,6 +10,8 @@ from ..database.connection import get_session
 from ..database.models import Project
 from ..schemas.git import GitCommitStats, GitErrorResponse, GitStatsResponse, TimePatterns
 from ..services.git_analyzer_service import GitAnalyzerService
+
+log = logging.getLogger("mettle.api.git")
 
 router = APIRouter()
 
@@ -90,13 +94,12 @@ async def get_project_git_stats(
 
         return response
 
-    except Exception as e:
-        # Log error and return graceful response
-        print(f"Error analyzing Git repository {project.path}: {str(e)}")
+    except Exception:
+        log.exception("git analysis failed for project %s", project.id)
         return JSONResponse(
             status_code=500,
             content=GitErrorResponse(
-                error=f"Error analyzing repository: {str(e)}",
+                error="Git analysis failed (see server logs)",
                 is_git_repo=True,
                 project_id=project.id,
                 project_name=project.name,
