@@ -34,7 +34,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "rich>=13.7.0",
+    "rich>=15.0.0",
     "reportlab>=4.0.8",
     "matplotlib>=3.8.2",
     "questionary>=2.0.1",
