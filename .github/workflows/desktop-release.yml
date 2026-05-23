@@ -237,13 +237,15 @@ jobs:
           TAG: ${{ steps.tag.outputs.ref }}
         run: |
           set -euo pipefail
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           # Orphan branch holds only latest.json + version-pinned snapshots.
           mkdir -p _publish
           mv latest.json _publish/
           cd _publish
           git init -q
+          # Identity must be configured AFTER `git init` — it applies to
+          # whichever repo .git/config we're sitting in.
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -q -b release-manifest
           cp latest.json "latest-${TAG}.json"
           git add latest.json "latest-${TAG}.json"
