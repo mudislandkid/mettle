@@ -103,35 +103,20 @@ runner, signs every executable inside the bundle, signs the `.dmg`,
 submits the `.app` to Apple's notary service, polls until the ticket is
 issued (~1–5 min), and staples it into the bundle.
 
-### Private-repo authentication
+### Updater authentication
 
-While the repo is private, the updater can't fetch the manifest or
-release assets anonymously. The Rust shell reads a fine-grained
-**read-only** Personal Access Token via `option_env!("METTLE_UPDATER_PAT")`
-at compile time and adds it as an `Authorization: Bearer` header to every
-updater request.
+The repo is public, so the updater fetches the manifest and release
+assets anonymously. No PAT or other credential needs to be embedded
+in the binary.
 
-The PAT lives in the GitHub Actions secret `METTLE_UPDATER_PAT` and is
-baked into every shipped `.app` binary. **Anyone with a release artefact
-can extract it**, so:
-
-- Scope it tight: fine-grained PAT, **Contents: read-only**, **Metadata:
-  read-only**, on `mudislandkid/mettle` only.
-- Rotate periodically (set a 90-day expiry).
-- When the repo goes public, remove the `METTLE_UPDATER_PAT` secret —
-  the `option_env!` branch in `lib.rs` falls through and the plugin
-  registers without auth.
-
-To create the PAT:
-
-1. https://github.com/settings/personal-access-tokens/new
-2. Resource owner: `mudislandkid`
-3. Repository access: Only select repositories → `mettle`
-4. Permissions → Repository permissions:
-   - Contents: Read-only
-   - Metadata: Read-only (auto-granted)
-5. Copy the `github_pat_...` value.
-6. `gh secret set METTLE_UPDATER_PAT --repo mudislandkid/mettle --body "<paste>"`
+Historically (while the repo was private) the Rust shell read a
+fine-grained read-only Personal Access Token via
+`option_env!("METTLE_UPDATER_PAT")` at compile time and added it as an
+`Authorization: Bearer` header. The `option_env!` branch in `lib.rs`
+remains — it just falls through and the updater plugin registers
+without auth. If you ever fork into a private setup, set
+`METTLE_UPDATER_PAT` as an Actions secret with `Contents: read-only`
+and `Metadata: read-only` and the auth header reappears at build time.
 
 ## Cutting a release
 

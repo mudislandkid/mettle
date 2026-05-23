@@ -178,19 +178,14 @@ pub fn run() {
     let state_for_setup = state.clone();
     let state_for_exit = state.clone();
 
-    // Updater plugin. If METTLE_UPDATER_PAT is set at build time (CI does
-    // this from a GitHub Actions secret) we add it as a Bearer header so the
-    // plugin can fetch the manifest + release assets from a private GitHub
-    // repo. Without the PAT (e.g. local dev builds) we register the plugin
-    // without auth — the updater will 404 against private endpoints but
-    // local dev doesn't usually exercise the update flow.
-    //
-    // The PAT is read via `option_env!` at compile time so it ends up baked
-    // into the binary. That's the inherent trade-off of this approach —
-    // anyone with a shipped `.app` can extract the token. Mitigation: scope
-    // the PAT to a fine-grained read-only access to just this repo, and
-    // rotate periodically. Once the repo is public this whole branch goes
-    // away and the plugin needs no auth.
+    // Updater plugin. The Mettle repo is public, so the plugin fetches the
+    // manifest + release assets anonymously by default and METTLE_UPDATER_PAT
+    // is not set at build time. The option_env! branch below is retained for
+    // forks that run in a private-repo setup: setting METTLE_UPDATER_PAT as
+    // an Actions secret with Contents:read-only + Metadata:read-only on
+    // their fork is enough to make the updater work against a private repo.
+    // (Note: in that fork case, the PAT gets baked into the shipped .app —
+    // anyone with a release artefact can extract it. Scope tightly.)
     let updater_plugin = {
         let builder = tauri_plugin_updater::Builder::new();
         let builder = match option_env!("METTLE_UPDATER_PAT") {
