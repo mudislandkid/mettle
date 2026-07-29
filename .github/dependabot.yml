@@ -19,6 +19,41 @@ updates:
       - "dependencies"
       - "rust"
     open-pull-requests-limit: 5
+    # Tauri's GTK3 backend is Linux-only and pins this family at 0.18.x.
+    # We ship aarch64-apple-darwin exclusively, and `cargo tree -i <crate>
+    # --target aarch64-apple-darwin` reports "nothing to print" for every
+    # entry below — none of it is compiled into the shipped app. Advisories
+    # here are unfixable without Tauri moving off GTK3, so Dependabot could
+    # only retry `security_update_not_possible` daily and fail the run.
+    # cargo-audit already allowlists the matching RUSTSEC ids in
+    # .github/workflows/dep-audit.yml. Revisit if a Linux target is added.
+    ignore:
+      - dependency-name: "glib"
+      - dependency-name: "glib-sys"
+      - dependency-name: "glib-macros"
+      - dependency-name: "gtk"
+      - dependency-name: "gtk-sys"
+      - dependency-name: "gtk3-macros"
+      - dependency-name: "gdk"
+      - dependency-name: "gdk-sys"
+      - dependency-name: "gdkx11"
+      - dependency-name: "gdk-pixbuf"
+      - dependency-name: "gdk-pixbuf-sys"
+      - dependency-name: "gio"
+      - dependency-name: "gio-sys"
+      - dependency-name: "gobject-sys"
+      - dependency-name: "atk"
+      - dependency-name: "atk-sys"
+      - dependency-name: "pango"
+      - dependency-name: "pango-sys"
+      - dependency-name: "cairo-rs"
+      - dependency-name: "cairo-sys-rs"
+      - dependency-name: "soup3"
+      - dependency-name: "soup3-sys"
+      - dependency-name: "javascriptcore-rs"
+      - dependency-name: "javascriptcore-rs-sys"
+      - dependency-name: "webkit2gtk"
+      - dependency-name: "webkit2gtk-sys"
 
   # npm deps (Vue frontend)
   - package-ecosystem: "npm"
