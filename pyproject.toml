@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mettle"
-version = "0.9.2"
+version = "0.9.3"
 description = "A triage dashboard for the AI-coding era. Honest line counts, health scoring, and cross-project insight for solo developers managing repo sprawl."
 readme = "README.md"
 requires-python = ">=3.10"

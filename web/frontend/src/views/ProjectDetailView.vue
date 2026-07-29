@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProject, refreshProjectAnalysis } from '@/api/projects'
 import { useGitStats } from '@/composables/useGitStats'
@@ -35,18 +35,67 @@ async function loadProject() {
   }
 }
 
-async function handleRefreshProject() {
-  projectLoading.value = true
-  projectError.value = null
+// Re-analysis is tracked separately from `projectLoading`. Reusing the load
+// flag swapped the whole page for the skeleton, which read as "the page
+// reloaded and nothing happened" — and hid the very button being clicked.
+const refreshing = ref(false)
+const refreshError = ref<string | null>(null)
+const refreshSummary = ref<string | null>(null)
+let refreshSummaryTimer: ReturnType<typeof setTimeout> | null = null
 
-  try {
-    project.value = await refreshProjectAnalysis(projectId.value)
-  } catch (e) {
-    projectError.value = (e as Error).message || 'Failed to refresh project'
-  } finally {
-    projectLoading.value = false
+/** Describe what the re-run actually changed, so "no change" is explicit. */
+function describeDelta(before: Project, after: Project): string {
+  const deltas: Array<[string, number]> = [
+    ['file', after.total_files - before.total_files],
+    ['line', after.total_lines - before.total_lines],
+    ['TODO', after.todos - before.todos],
+  ]
+  const parts = deltas
+    .filter(([, delta]) => delta !== 0)
+    .map(([label, delta]) => {
+      const plural = Math.abs(delta) === 1 ? '' : 's'
+      return `${delta > 0 ? '+' : '−'}${Math.abs(delta).toLocaleString()} ${label}${plural}`
+    })
+  return parts.length ? `Re-analyzed — ${parts.join(', ')}` : 'Re-analyzed — nothing changed since the last run'
+}
+
+function clearRefreshSummaryTimer() {
+  if (refreshSummaryTimer !== null) {
+    clearTimeout(refreshSummaryTimer)
+    refreshSummaryTimer = null
   }
 }
+
+async function handleRefreshProject() {
+  if (refreshing.value) return
+
+  const before = project.value
+  refreshing.value = true
+  refreshError.value = null
+  refreshSummary.value = null
+  clearRefreshSummaryTimer()
+
+  try {
+    const updated = await refreshProjectAnalysis(projectId.value)
+    project.value = updated
+    refreshSummary.value = before ? describeDelta(before, updated) : 'Re-analyzed'
+    // Auto-dismiss — a stale "re-analyzed" note next to changing numbers is
+    // worse than no note at all.
+    refreshSummaryTimer = setTimeout(() => {
+      refreshSummary.value = null
+      refreshSummaryTimer = null
+    }, 8000)
+  } catch (e) {
+    // Kept inline rather than routed to projectError: a failed re-run
+    // shouldn't replace perfectly good already-loaded metrics with an
+    // error page.
+    refreshError.value = (e as Error).message || 'Failed to refresh project'
+  } finally {
+    refreshing.value = false
+  }
+}
+
+onUnmounted(clearRefreshSummaryTimer)
 
 const {
   stats: gitStats,
@@ -131,22 +180,54 @@ function goBack() {
             </router-link>
             <button
               @click="handleRefreshProject"
-              :disabled="projectLoading"
+              :disabled="refreshing"
               class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-indigo-400 dark:bg-indigo-500/15 dark:hover:bg-indigo-500/25"
             >
               <svg
                 class="w-4 h-4"
-                :class="{ 'animate-spin': projectLoading }"
+                :class="{ 'animate-spin': refreshing }"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
               >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              {{ projectLoading ? 'Re-analyzing...' : 'Re-analyze' }}
+              {{ refreshing ? 'Re-analyzing…' : 'Re-analyze' }}
             </button>
           </div>
         </div>
+
+        <!-- Re-analysis outcome. Without this a successful run that changed
+             nothing is indistinguishable from the button doing nothing. -->
+        <div
+          v-if="refreshing"
+          class="mb-4 flex items-center gap-2 rounded-md bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+        >
+          <svg class="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Re-scanning {{ project.path }}…
+        </div>
+        <div
+          v-else-if="refreshError"
+          class="mb-4 flex items-start gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+        >
+          <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="flex-1 min-w-0 break-words">Re-analysis failed: {{ refreshError }}</span>
+          <button @click="refreshError = null" class="shrink-0 underline underline-offset-2">Dismiss</button>
+        </div>
+        <div
+          v-else-if="refreshSummary"
+          class="mb-4 flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          {{ refreshSummary }}
+        </div>
+
         <ProjectMetricsCard :project="project" />
       </div>
 
