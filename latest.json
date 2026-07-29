@@ -1,0 +1,11 @@
+{
+  "version": "0.9.3",
+  "notes": "See https://github.com/mudislandkid/mettle/releases/tag/v0.9.3",
+  "pub_date": "2026-07-29T00:27:09Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTazZOMkFLUU1kbTVzRWNPZytkeFQ2LzY4NGhkcHpESExVb21kWDFNZE9Ob0NRSUVaYVcxYU1scTBnVnF4QkNCeEltbHBoa1lFTHM2L2hkL1hJVzgwemdNZEhpMEUyTlFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1Mjg0NzgwCWZpbGU6TWV0dGxlLmFwcC50YXIuZ3oKS2hpZjNWaXg2OHd1d3Rod0pRVko4K1lxa0pkaDNpM2pZM3cvWEtKWVNPSXBPTStqcXRiYi9XRXp1TGRUeXdpbFVyTjBkMlNOM2NyVnNqOHBPdnYvQ3c9PQo=",
+      "url": "https://github.com/mudislandkid/mettle/releases/download/v0.9.3/Mettle-aarch64-apple-darwin.app.tar.gz"
+    }
+  }
+}
