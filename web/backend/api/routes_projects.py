@@ -435,6 +435,11 @@ async def refresh_project_analysis(
 
         return get_project_response(project, session)
 
+    except HTTPException:
+        # Our own 4xx (e.g. "Failed to analyze project") — these describe a
+        # client-side condition and must not be relabelled as a server error
+        # by the catch-all below.
+        raise
     except Exception as e:
         log.exception("re-analyze project %s failed", project.id)
         raise HTTPException(status_code=500, detail="Re-analysis failed (see server logs)") from e
