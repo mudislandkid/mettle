@@ -37,9 +37,98 @@ router = APIRouter()
 active_connections: dict[int, list[WebSocket]] = {}
 _connections_lock = threading.Lock()
 
+# Latest progress payload per analysis, so a client that connects *after* the
+# run started can be brought up to date instead of waiting for a frame that
+# already went out. See `record_progress` for why this is necessary.
+last_progress: dict[int, dict] = {}
+_progress_lock = threading.Lock()
+
+# Bound the replay cache. Desktop sessions are long-lived and every analysis
+# would otherwise pin a payload for the life of the process.
+MAX_TRACKED_ANALYSES = 256
+
 # Loop captured by main.py lifespan startup so background-thread analysis tasks
 # can schedule broadcasts back into the event loop.
 main_loop: asyncio.AbstractEventLoop | None = None
+
+
+def record_progress(analysis_id: int, data: dict) -> None:
+    """Remember the latest progress payload for `analysis_id`.
+
+    `POST /analysis/start` queues the work as a FastAPI BackgroundTask, which
+    Starlette runs as soon as the HTTP response is flushed — but the client
+    can only open its progress WebSocket *after* that POST resolves. Analyses
+    routinely finish inside that window (a 58-file project scans in ~40ms), so
+    broadcasts fired before the socket registers reach nobody.
+
+    Keeping the last payload lets `websocket_progress` replay a snapshot on
+    connect, which is what stops the UI from either jumping straight to "done"
+    with no progress or hanging on the running state forever.
+    """
+    with _progress_lock:
+        # Re-insert so ordering reflects recency, then trim the oldest.
+        last_progress.pop(analysis_id, None)
+        last_progress[analysis_id] = data
+        while len(last_progress) > MAX_TRACKED_ANALYSES:
+            last_progress.pop(next(iter(last_progress)))
+
+
+def forget_progress(analysis_id: int) -> None:
+    """Drop cached progress for an analysis (used when it's deleted)."""
+    with _progress_lock:
+        last_progress.pop(analysis_id, None)
+
+
+def _snapshot_from_db(analysis: Analysis) -> dict:
+    """Rebuild a progress frame from the persisted analysis row.
+
+    Used when a client connects and no in-memory payload survives — e.g. the
+    run finished before the socket opened, or the process restarted.
+    """
+    total = analysis.total_projects or 0
+    if analysis.status == "completed":
+        return {
+            "status": "completed",
+            "current": total,
+            "total": total,
+            "project_name": "",
+            "message": f"Analysis complete! Analyzed {total} projects.",
+            "logs": ["Analysis completed successfully"],
+        }
+    if analysis.status == "failed":
+        message = "Analysis failed (see server logs)"
+        return {
+            "status": "failed",
+            "current": 0,
+            "total": total,
+            "project_name": "",
+            "message": message,
+            "error": analysis.error_message or "AnalysisError",
+            "logs": [message],
+        }
+    message = "Analysis in progress..." if analysis.status == "running" else "Analysis queued..."
+    return {
+        "status": analysis.status,
+        "current": 0,
+        "total": total,
+        "project_name": "",
+        "message": message,
+        "logs": [],
+    }
+
+
+def progress_snapshot(analysis_id: int) -> dict | None:
+    """Best-known progress for `analysis_id`: cached payload, else the DB row."""
+    with _progress_lock:
+        cached = last_progress.get(analysis_id)
+    if cached is not None:
+        return cached
+
+    with Session(engine) as session:
+        analysis = session.get(Analysis, analysis_id)
+        if analysis is None:
+            return None
+        return _snapshot_from_db(analysis)
 
 
 async def broadcast_progress(analysis_id: int, data: dict):
@@ -75,6 +164,9 @@ def _parse_iso(raw: str | None) -> datetime | None:
 
 def schedule_broadcast(analysis_id: int, data: dict):
     """Schedule a broadcast in the main event loop from a background thread."""
+    # Record before dispatching: the payload must survive even when there is
+    # no socket yet (the common case) or no usable loop to deliver it on.
+    record_progress(analysis_id, data)
     if main_loop is None or not main_loop.is_running():
         logger.debug("dropped broadcast for analysis %s: loop unavailable", analysis_id)
         return
@@ -471,6 +563,7 @@ async def delete_analysis(analysis_id: int, session: Session = Depends(get_sessi
 
     session.delete(analysis)
     session.commit()
+    forget_progress(analysis_id)
 
     return {"message": "Analysis deleted", "success": True}
 
@@ -486,8 +579,35 @@ async def websocket_progress(websocket: WebSocket, analysis_id: int):
         return  # close() already called inside authorize_websocket
     await websocket.accept(subprotocol=subprotocol)
 
+    # Replay the current state immediately. The analysis starts the instant the
+    # POST /start response is flushed, so by the time this socket exists the run
+    # is often already partway through — or finished. Without this the client
+    # would sit waiting for frames that have already been broadcast.
+    #
+    # Deliberately sent *before* registering in active_connections: no broadcast
+    # can target this socket yet, so the snapshot cannot land after a newer
+    # frame and drag the UI backwards.
+    snapshot = progress_snapshot(analysis_id)
+    if snapshot is not None:
+        try:
+            await websocket.send_json(snapshot)
+        except Exception:
+            logger.debug("failed to send progress snapshot for analysis %s", analysis_id)
+
     with _connections_lock:
         active_connections.setdefault(analysis_id, []).append(websocket)
+
+    # Close the remaining gap: if the run reached a terminal state between the
+    # snapshot and registration, that frame went nowhere and the client would
+    # hang. Re-check and resend — a duplicate terminal frame is harmless, a
+    # missed one is a permanent spinner.
+    if snapshot is None or snapshot.get("status") not in ("completed", "failed"):
+        latest = progress_snapshot(analysis_id)
+        if latest is not None and latest.get("status") in ("completed", "failed"):
+            try:
+                await websocket.send_json(latest)
+            except Exception:
+                logger.debug("failed to resend terminal frame for %s", analysis_id)
 
     try:
         while True:
