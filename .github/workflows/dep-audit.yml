@@ -27,8 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pulls the prebuilt binary from the rustsec/rustsec GitHub Releases
+      # instead of building it. `cargo install cargo-audit --locked` compiled
+      # the tool and ~110 dependencies from source on every run, which was
+      # ~3min of this job's ~3m10s wall time — for a job that runs on every
+      # PR and daily on a schedule.
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
       - name: Audit
         working-directory: web/frontend/src-tauri
         # Ignore unmaintained-crate advisories (RUSTSEC informational warnings).

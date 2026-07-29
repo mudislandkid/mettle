@@ -20,6 +20,16 @@ ENV/
 */venv/
 */.venv/
 
+# uv lockfile. Mettle is a pip-installable package whose dependency contract
+# is the version ranges in pyproject.toml — CI installs with
+# `pip install -e ".[web,dev,watch]"` and pip-audit audits the project, not a
+# lockfile. Committing uv.lock would add a second, parallel source of truth
+# that nothing regenerates and that would silently drift from pyproject.
+# It's fine to use uv locally; the lockfile just isn't a repo artifact.
+# If uv ever becomes the canonical toolchain (CI + CONTRIBUTING), commit it
+# deliberately and drop this rule.
+uv.lock
+
 # Test / coverage / type-check / lint caches
 .pytest_cache/
 .mypy_cache/
