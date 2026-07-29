@@ -20,7 +20,7 @@
     "echarts": "^6.0.0",
     "vue": "^3.4.0",
     "vue-echarts": "^8.0.1",
-    "vue-router": "^4.2.0"
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
