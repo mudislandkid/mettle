@@ -1,6 +1,19 @@
 version: 2
 updates:
-  # Python deps
+  # Python deps.
+  #
+  # Version updates are disabled (limit 0); security updates still open PRs —
+  # they are exempt from this limit. Mettle is published to PyPI and declares
+  # open-ended floors (`rich>=13.7.0`, `sqlalchemy>=2.0.25`, ...), which is the
+  # right contract for a library: take whatever recent version the user's
+  # environment resolves. Dependabot's pip version updates only ever raise
+  # those floors, which narrows what Mettle can be installed alongside without
+  # buying anything — we don't need the newer APIs, and users already get the
+  # latest resolvable version. Left on, it regenerates the same PRs forever.
+  #
+  # A real vulnerability still needs the floor raised, and that arrives as a
+  # security update, which this does not suppress. If Mettle ever pins or
+  # ships a lockfile, revisit.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -8,7 +21,7 @@ updates:
     labels:
       - "dependencies"
       - "python"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
 
   # Rust deps (Tauri shell)
   - package-ecosystem: "cargo"
