@@ -33,7 +33,7 @@ jobs:
       # ~3min of this job's ~3m10s wall time — for a job that runs on every
       # PR and daily on a schedule.
       - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@v2.85.4
         with:
           tool: cargo-audit
       - name: Audit
